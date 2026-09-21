@@ -1020,6 +1020,74 @@ const SharedStore = (() => {
     return { id: tripId, slug: slug };
   }
 
+  /* ---------------- course search helpers (pure) ---------------- */
+
+  /* Great-circle distance in miles between two lat/lng points. */
+  function haversineMiles(lat1, lon1, lat2, lon2) {
+    var R = 3958.8; /* earth radius in miles */
+    var toRad = function (d) { return d * Math.PI / 180; };
+    var dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
+  /* Build the POST body for the course-search edge function.
+     opts: { mode?: "search"|"geocode", query, lat?, lng? } */
+  function buildCourseSearchRequest(opts) {
+    opts = opts || {};
+    var q = String(opts.query == null ? "" : opts.query).trim();
+    var body = { mode: opts.mode === "geocode" ? "geocode" : "search",
+                 query: q || "golf course" };
+    if (typeof opts.lat === "number" && typeof opts.lng === "number") {
+      body.lat = opts.lat;
+      body.lng = opts.lng;
+    }
+    return body;
+  }
+
+  /* Map edge-function place results to client course-option objects (the same
+     shape the vote UI expects). dest may be { label, lat, lng } or a plain
+     label string (distance unknown in that case). */
+  var _searchSeq = 0;
+  function mapPlacesToCourseOptions(places, dest) {
+    var label = "", dLat = null, dLng = null;
+    if (dest && typeof dest === "object") {
+      label = String(dest.label || "");
+      if (typeof dest.lat === "number" && typeof dest.lng === "number") {
+        dLat = dest.lat; dLng = dest.lng;
+      }
+    } else {
+      label = String(dest || "");
+    }
+    _searchSeq += 1;
+    var stamp = Date.now().toString(36) + "-" + _searchSeq;
+    return (places || []).map(function (p, i) {
+      var miles = (typeof p.lat === "number" && typeof p.lng === "number" &&
+                   dLat !== null && dLng !== null)
+        ? haversineMiles(dLat, dLng, p.lat, p.lng) : null;
+      return {
+        id: "search-" + stamp + "-" + i,
+        name: p.name || "",
+        loc: p.address || "",
+        drive: miles !== null
+          ? "~" + Math.round(miles) + " mi from " + label + " (straight-line est.)"
+          : "",
+        verdict: "",
+        researched: false,
+        fitsRule: miles !== null ? miles <= 180 : false,
+        price: 0,
+        priceText: "TBD",
+        photoKey: "course" + ((i % 3) + 1),
+        /* display-only passthrough for the search results UI (never persisted) */
+        rating: typeof p.rating === "number" ? p.rating : null,
+        ratings: typeof p.ratings === "number" ? p.ratings : null,
+        votes: []
+      };
+    });
+  }
+
   /* ---------------- realtime ---------------- */
   var TRIP_TABLES = ["trips", "golfers", "date_options", "course_options",
                      "stay_options", "cost_items", "scores", "dues_paid", "skin_counts"];
@@ -1059,6 +1127,9 @@ const SharedStore = (() => {
     pushDiff: pushDiff,
     createSharedTrip: createSharedTrip,
     subscribeTrip: subscribeTrip,
+    haversineMiles: haversineMiles,
+    buildCourseSearchRequest: buildCourseSearchRequest,
+    mapPlacesToCourseOptions: mapPlacesToCourseOptions,
     TRIP_TABLES: TRIP_TABLES,
     VOTE_TABLES: VOTE_TABLES
   };
@@ -1412,7 +1483,8 @@ function renderCourses() {
   const total = S.courses.reduce((t, c) => t + c.votes.length, 0);
   const ranked = S.courses.slice().sort((a, b) => b.votes.length - a.votes.length);
   const maxV = Math.max(1, ...S.courses.map(c => c.votes.length));
-  let html = '<div class="card"><div class="kicker">Vote</div><h2>Where are we playing?</h2>' +
+  let html = renderCourseSearchCard() +
+    '<div class="card"><div class="kicker">Vote</div><h2>Where are we playing?</h2>' +
     '<p class="muted small" style="margin:4px 0 0">' + total + " of " + S.golfers.length +
     " golfers have voted. The three in-range figures are researched estimates; stretch options are rough estimates.</p>" +
     '<div class="mini-progress"><i style="width:' + Math.round(total / S.golfers.length * 100) + '%"></i></div>' +
@@ -1442,6 +1514,110 @@ function renderCourses() {
   });
   $("#panel-courses").innerHTML = html;
   $("#course-vote-as").addEventListener("change", e => setIdentityUI(e.target.value));
+  const csBtn = $("#course-search-btn"), csInput = $("#course-search-q");
+  if (csBtn) csBtn.addEventListener("click", courseSearch);
+  if (csInput) csInput.addEventListener("keydown", e => { if (e.key === "Enter") courseSearch(); });
+}
+
+/* ================= Course search (shared backend only) ================= */
+let courseSearchResults = []; /* display objects from mapPlacesToCourseOptions */
+let courseSearchGeo = null;   /* { area, label, lat, lng } — resolved dest coords */
+let courseSearchQuery = "";
+
+function renderCourseSearchCard() {
+  let card = '<div class="card"><div class="kicker">Discover</div><h2>Find courses</h2>';
+  if (typeof SHARED !== "undefined" && SHARED && SHARED.client) {
+    card += '<p class="muted small" style="margin:4px 0 10px">Search real courses near the trip destination, then add the good ones for the crew to vote on.</p>' +
+      '<div style="display:flex;gap:8px;align-items:stretch">' +
+        '<input type="text" id="course-search-q" placeholder="Try \'links course\' or a town name" value="' + esc(courseSearchQuery) + '" style="flex:1;min-width:0">' +
+        '<button class="btn sm" id="course-search-btn" style="flex:none">Search</button>' +
+      '</div></div>' + renderCourseSearchResults();
+  } else {
+    card += '<p class="muted small" style="margin:4px 0 0">Course search needs the shared backend — it\u2019s available on the trip link.</p></div>';
+  }
+  return card;
+}
+
+function renderCourseSearchResults() {
+  if (!courseSearchResults.length) return "";
+  return courseSearchResults.map(function (c) {
+    const added = S.courses.some(x =>
+      x.name.toLowerCase() === c.name.toLowerCase() &&
+      (x.loc || "").toLowerCase() === (c.loc || "").toLowerCase());
+    const rating = c.rating != null
+      ? '<div class="muted small">★ ' + c.rating.toFixed(1) +
+        (c.ratings ? " (" + c.ratings + " reviews)" : "") + '</div>' : "";
+    return '<div class="card opt" style="margin-top:8px">' +
+      '<h3 style="margin:0 0 2px">' + esc(c.name) + '</h3>' +
+      '<div class="muted small">' + esc(c.loc) + '</div>' + rating +
+      (c.drive ? '<div class="muted small">' + esc(c.drive) + '</div>' : "") +
+      '<div style="margin-top:10px"><button class="btn sm ghost"' +
+        (added ? " disabled" : ' onclick="addSearchCourse(\'' + c.id + '\')"') + '>' +
+        (added ? "Added ✓" : "Add to trip") + '</button></div></div>';
+  }).join("");
+}
+
+async function courseSearch() {
+  if (typeof SHARED === "undefined" || !SHARED || !SHARED.client) return;
+  const btn = $("#course-search-btn"), input = $("#course-search-q");
+  const q = input ? input.value.trim() : "";
+  courseSearchQuery = q;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = "Searching…";
+  try {
+    /* 1. destination coords (cached per trip area) */
+    const area = (S.trip.area || "").trim() || "St. Louis, MO";
+    let geo = courseSearchGeo;
+    if (!geo || geo.area !== area) {
+      const key = "caddie-geocode:" + area.toLowerCase();
+      let cached = null;
+      try { cached = localStorage.getItem(key); } catch (e) {}
+      if (cached) {
+        geo = JSON.parse(cached);
+      } else {
+        const g = await SHARED.client.functions.invoke("course-search", {
+          body: SharedStore.buildCourseSearchRequest({ mode: "geocode", query: area })
+        });
+        if (g.error) throw g.error;
+        const gp = g.data && g.data.places && g.data.places[0];
+        if (!gp || typeof gp.lat !== "number" || typeof gp.lng !== "number") throw new Error("geocode failed");
+        geo = { area: area, label: area, lat: gp.lat, lng: gp.lng };
+        try { localStorage.setItem(key, JSON.stringify(geo)); } catch (e) {}
+      }
+      courseSearchGeo = geo;
+    }
+    /* 2. search biased to the destination */
+    const r = await SHARED.client.functions.invoke("course-search", {
+      body: SharedStore.buildCourseSearchRequest({ query: q, lat: geo.lat, lng: geo.lng })
+    });
+    if (r.error) throw r.error;
+    const places = (r.data && r.data.places) || [];
+    courseSearchResults = SharedStore.mapPlacesToCourseOptions(places, geo);
+    if (!courseSearchResults.length) toast("No courses found — try a different search.");
+    renderCourses();
+    const qi = $("#course-search-q");
+    if (qi) qi.focus();
+  } catch (e) {
+    toast("Course search isn't available right now.");
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+function addSearchCourse(id) {
+  const c = courseSearchResults.find(x => x.id === id);
+  if (!c) return;
+  const dupe = S.courses.some(x =>
+    x.name.toLowerCase() === c.name.toLowerCase() &&
+    (x.loc || "").toLowerCase() === (c.loc || "").toLowerCase());
+  if (dupe) { toast("Already on the trip list."); return; }
+  /* persistence-clean copy: display-only fields (rating) stay in the results list */
+  S.courses.push({ id: c.id, name: c.name, loc: c.loc, drive: c.drive, verdict: "",
+    researched: false, fitsRule: c.fitsRule, price: 0, priceText: "TBD",
+    photoKey: c.photoKey, votes: [] });
+  save(); renderHero(); renderCourses();
+  toast("Added " + c.name + " — crew can vote now.");
 }
 
 /* ================= Stays tab ================= */
