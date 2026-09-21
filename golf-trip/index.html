@@ -541,6 +541,45 @@ const SharedStore = (() => {
     } catch (e) { return null; }
   }
 
+  /* Parse ?trip=<uuid-or-slug>. Returns {id} for a UUID, {slug} for a
+     human-friendly slug (lowercased), or null when the param is absent. */
+  function parseTripParam(search) {
+    try {
+      var q = String(search == null ? "" : search).replace(/^\?/, "");
+      var m = q.match(/(?:^|&)trip=([^&]+)/);
+      if (!m) return null;
+      var v = decodeURIComponent(m[1]);
+      if (!v) return null;
+      return isUuid(v) ? { id: v } : { slug: v.toLowerCase() };
+    } catch (e) { return null; }
+  }
+
+  /* "Fall Golf Trip 2026" -> "fall-golf-trip-2026". */
+  function slugify(s) {
+    return String(s == null ? "" : s).toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "trip";
+  }
+
+  /* Resolve a slug to a trip id, or null when no trip uses it. */
+  async function resolveTripSlug(client, slug) {
+    var r = await client.from("trips").select("id").eq("slug", slug);
+    if (r.error) throw r.error;
+    return (r.data && r.data.length) ? r.data[0].id : null;
+  }
+
+  /* First unused slug for base: base, base-2, base-3, … */
+  async function uniqueSlug(client, base) {
+    var slug = base, n = 0;
+    for (;;) {
+      var r = await client.from("trips").select("id").eq("slug", slug);
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) return slug;
+      n += 1;
+      slug = base + "-" + n;
+      if (n > 100) return base + "-" + Math.random().toString(36).slice(2, 7);
+    }
+  }
+
   /* Build a supabase-js client, or null when config/lib is missing. */
   function createClient(url, key) {
     if (!url || !key || String(url).indexOf("http") !== 0) return null;
@@ -674,7 +713,7 @@ const SharedStore = (() => {
 
     return {
       v: 2, mode: "shared", activeTab: "trip",
-      trip: { name: trip.name, area: trip.destination, organizer: trip.organizer },
+      trip: { name: trip.name, area: trip.destination, organizer: trip.organizer, slug: trip.slug || "" },
       golfers: golfers.map(function (g) { return { id: g.id, name: g.name, hc: g.handicap }; }),
       votingAs: "",
       dates: dates.map(function (d) {
@@ -932,9 +971,10 @@ const SharedStore = (() => {
   /* ---------------- create a shared trip from a local state ---------------- */
   async function createSharedTrip(client, src) {
     var fail = function (r, what) { if (r && r.error) throw new Error(what + ": " + (r.error.message || r.error)); return r; };
+    var slug = await uniqueSlug(client, slugify(src.trip.name));
     var t = fail(await client.from("trips").insert({
       name: src.trip.name, destination: src.trip.area, organizer: src.trip.organizer,
-      skins_on: false, skins_pot: 5
+      skins_on: false, skins_pot: 5, slug: slug
     }).select(), "create trip");
     var tripId = t.data[0].id;
 
@@ -962,7 +1002,7 @@ const SharedStore = (() => {
     })), "seed costs");
 
     /* stays intentionally start empty — the group proposes real listings */
-    return tripId;
+    return { id: tripId, slug: slug };
   }
 
   /* ---------------- realtime ---------------- */
@@ -992,6 +1032,9 @@ const SharedStore = (() => {
   return {
     isUuid: isUuid,
     parseTripId: parseTripId,
+    parseTripParam: parseTripParam,
+    slugify: slugify,
+    resolveTripSlug: resolveTripSlug,
     createClient: createClient,
     getIdentity: getIdentity,
     setIdentity: setIdentity,
@@ -2126,8 +2169,8 @@ function supaReady() {
   return typeof SUPABASE_URL === "string" && SUPABASE_URL.indexOf("http") === 0 &&
          typeof SUPABASE_ANON_KEY === "string" && SUPABASE_ANON_KEY.length > 20;
 }
-function shareLink(tripId) {
-  return location.origin + location.pathname + "?trip=" + tripId;
+function shareLink(tripId, slug) {
+  return location.origin + location.pathname + "?trip=" + encodeURIComponent(slug || tripId);
 }
 function iamLabel() { return SHARED ? "I am" : "Voting as"; }
 function iamChoose() {
@@ -2224,7 +2267,19 @@ function subscribeShared() {
   );
 }
 async function boot() {
-  const tripId = SharedStore.parseTripId(location.search);
+  const tripParam = SharedStore.parseTripParam(location.search);
+  let tripId = tripParam && tripParam.id ? tripParam.id : null;
+  if (tripParam && !tripId) {
+    /* slug link (e.g. ?trip=fall-2026): resolve it to the trip id first */
+    if (supaReady()) {
+      const client = SharedStore.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      if (client) {
+        try { tripId = await SharedStore.resolveTripSlug(client, tripParam.slug); }
+        catch (e) { tripId = null; }
+      }
+    }
+    if (!tripId) bootNotice = "That shared-trip link didn't open (it may have been deleted). Showing your local data instead.";
+  }
   if (tripId) {
     if (supaReady()) {
       const client = SharedStore.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -2272,15 +2327,15 @@ async function createSharedTripUI() {
   if (!confirm("Create a shared trip from the current setup?\n\nDates, courses, golfers and the cost template carry over. Votes start at zero. You'll get a link to share with the crew.")) return;
   toast("Creating shared trip…");
   try {
-    const tripId = await SharedStore.createSharedTrip(client, S);
-    location.href = location.pathname + "?trip=" + tripId;
+    const res = await SharedStore.createSharedTrip(client, S);
+    location.href = location.pathname + "?trip=" + encodeURIComponent(res.slug);
   } catch (e) {
     alert("Couldn't create the trip: " + (e && e.message ? e.message : e));
   }
 }
 function copyShareLink() {
   if (!SHARED) return;
-  const link = shareLink(SHARED.tripId);
+  const link = shareLink(SHARED.tripId, S.trip && S.trip.slug);
   const done = () => toast("Share link copied — send it to the crew.");
   if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(link).then(done, () => fallbackCopy(link, done));
