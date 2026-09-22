@@ -298,6 +298,53 @@ table.score input.hc{width:48px;}
   font-weight:700;font-size:14px;margin-top:14px;cursor:pointer;font-family:var(--display);}
 .mytrip-row{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--line);
   border-radius:14px;margin-top:8px;text-decoration:none;color:var(--ink);background:#fff;}
+/* ---- sheet modal (player editor, trip wizard) ---- */
+.sheet-modal{position:fixed;inset:0;z-index:95;display:none;align-items:center;
+  justify-content:center;background:rgba(16,35,26,.45);padding:20px;}
+.sheet-modal.open{display:flex;}
+.sheet-card{background:var(--paper);border-radius:22px;box-shadow:var(--sh);
+  max-width:520px;width:100%;padding:26px 24px;position:relative;
+  max-height:92vh;overflow:auto;}
+.sheet-x{position:absolute;top:10px;right:10px;border:none;background:var(--cream);
+  width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;color:var(--muted);}
+.sheet-card input[type=text],.sheet-card input[type=email],.sheet-card input[type=tel],
+.sheet-card input[type=number]{width:100%;padding:12px 14px;border:2px solid var(--line);
+  border-radius:14px;font-size:16px;background:#fff;color:var(--ink);min-height:48px;
+  font-family:var(--body);margin:2px 0 10px;}
+.sheet-card input:focus{outline:none;border-color:var(--fairway);box-shadow:0 0 0 3px var(--lime-glow);}
+.sheet-card input:disabled{opacity:.45;background:var(--cream);}
+.tbdline{display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:14px;font-weight:600;}
+.tbdline input{width:20px;height:20px;accent-color:var(--fairway);}
+.radio-card{display:flex;gap:10px;align-items:flex-start;border:2px solid var(--line);
+  border-radius:14px;padding:12px;margin-top:8px;cursor:pointer;background:#fff;}
+.radio-card.sel{border-color:var(--fairway);box-shadow:0 0 0 3px var(--lime-glow);}
+.radio-card input{margin-top:3px;accent-color:var(--fairway);}
+/* ---- trip setup checklist ---- */
+.check-steps{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+.check-step{display:flex;align-items:center;gap:12px;padding:10px 12px;border:2px solid var(--line);
+  border-radius:14px;background:#fff;width:100%;text-align:left;cursor:pointer;font-family:var(--body);}
+.check-step.done{border-color:var(--fairway);background:#f4faf0;}
+.check-dot{width:28px;height:28px;border-radius:50%;flex:none;display:flex;align-items:center;
+  justify-content:center;font-weight:800;font-size:14px;background:var(--cream);color:var(--muted);}
+.check-step.done .check-dot{background:var(--fairway);color:#fff;}
+.check-bar{height:8px;border-radius:99px;background:var(--cream);margin-top:10px;overflow:hidden;}
+.check-bar i{display:block;height:100%;background:var(--fairway);border-radius:99px;transition:width .3s;}
+/* ---- roster ---- */
+.roster-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:2px solid var(--line);
+  border-radius:14px;margin-top:8px;background:#fff;}
+.roster-row.editable{cursor:pointer;}
+.roster-row.editable:active{background:var(--cream);}
+.roster-name{font-weight:700;}
+.roster-sub{font-size:12px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hcpill{flex:none;min-width:52px;text-align:center;font-weight:800;font-size:13px;
+  background:var(--cream);border-radius:999px;padding:6px 10px;color:var(--ink);}
+.hcpill.tbd{background:#fff7ed;color:#c2410c;}
+/* ---- wizard ---- */
+.wiz-progress{display:flex;gap:6px;margin:12px 0 4px;}
+.wiz-progress i{flex:1;height:6px;border-radius:99px;background:var(--cream);}
+.wiz-progress i.on{background:var(--fairway);}
+.wiz-crew-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border:2px solid var(--line);
+  border-radius:12px;margin-top:8px;background:#fff;}
 .mytrip-row:active{border-color:var(--fairway);}
 .mytrip-row .grow{flex:1;min-width:0;}
 .mytrip-row b{font-family:var(--display);}
@@ -418,6 +465,9 @@ table.score input.hc{width:48px;}
     <p class="muted small" id="auth-confirm-note" style="display:none;margin-top:12px">Account created — check your email to confirm it, then log in.</p>
     <p class="muted small" style="text-align:center;margin:14px 0 0"><a href="privacy.html" style="color:var(--fairway-d);font-weight:600">Privacy policy</a></p>
   </div>
+</div>
+<div class="sheet-modal" id="sheet-modal">
+  <div class="sheet-card" id="sheet-card" role="dialog" aria-modal="true"></div>
 </div>
 <script>
 /* ================= helpers ================= */
@@ -702,6 +752,40 @@ const SharedStore = (() => {
     return ["2026-" + mm + "-" + p(+m[2]), "2026-" + mm + "-" + p(+m[3])];
   }
 
+  /* ---------------- golfer mapping (pure; S-shape <-> DB row) ---------------- */
+  /* S-shape: { id, name, hc (number|null=TBD), email, phone, ghin } */
+  /* Roster columns only. Contact details (email/phone/GHIN) are owner-only
+     and live in golfer_contacts -- never on the share-link-readable golfers table. */
+  function golferToRow(g) {
+    return { name: g.name,
+             handicap: (g.hc == null || g.hc === "") ? null : +g.hc };
+  }
+  function rowToGolfer(r) {
+    return { id: r.id, name: r.name, hc: r.handicap };
+  }
+
+  /* ---------------- owner-only contact book ---------------- */
+  /* Returns { golferId: { email, phone, ghin } }. Only the trip owner can read. */
+  async function fetchGolferContacts(client, tripId) {
+    var r = await client.from("golfer_contacts")
+      .select("golfer_id,email,phone,ghin").eq("trip_id", tripId);
+    if (r.error) throw new Error("load contacts: " + (r.error.message || r.error));
+    var map = {};
+    (r.data || []).forEach(function (c) {
+      map[c.golfer_id] = { email: c.email || "", phone: c.phone || "", ghin: c.ghin || "" };
+    });
+    return map;
+  }
+  /* Upsert one golfer's contact row. Only the trip owner can write. */
+  async function upsertGolferContact(client, tripId, golferId, contact) {
+    var row = { trip_id: tripId, golfer_id: golferId,
+                email: contact.email || null, phone: contact.phone || null,
+                ghin: contact.ghin || null, updated_at: new Date().toISOString() };
+    var r = await client.from("golfer_contacts").upsert(row, { onConflict: "golfer_id" });
+    if (r.error) throw new Error("save contact: " + (r.error.message || r.error));
+    return r;
+  }
+
   /* ---------------- snapshot: shared-relevant slice of S ---------------- */
   function snapshotShared(s) {
     var sorts = function (arr) { return arr; };
@@ -712,7 +796,7 @@ const SharedStore = (() => {
         skins_pot: +((s.scores && s.scores.skinsPot) || 0)
       },
       golfers: s.golfers.map(function (g) {
-        return { id: g.id, name: g.name, handicap: +g.hc || 0 };
+        var row = golferToRow(g); row.id = g.id; return row;
       }),
       dates: s.dates.map(function (d, i) {
         return { id: d.id, label: d.label, sub: d.sub || "",
@@ -805,7 +889,7 @@ const SharedStore = (() => {
       v: 2, mode: "shared", activeTab: "trip",
       trip: { name: trip.name, area: trip.destination, organizer: trip.organizer,
               slug: trip.slug || "", ownerId: trip.owner_id || null },
-      golfers: golfers.map(function (g) { return { id: g.id, name: g.name, hc: g.handicap }; }),
+      golfers: golfers.map(function (g) { return rowToGolfer(g); }),
       votingAs: "",
       dates: dates.map(function (d) {
         return { id: d.id, label: d.label, sub: d.sub || "",
@@ -887,11 +971,12 @@ const SharedStore = (() => {
       var g = now.golfers[gi];
       if (!isUuid(g.id)) {
         var ins = fail(await client.from("golfers")
-          .insert({ trip_id: tripId, name: g.name, handicap: g.handicap }).select(), "add golfer");
+          .insert(Object.assign({ trip_id: tripId }, golferToRow(g))).select(), "add golfer");
         remap[g.id] = ins.data[0].id;
-      } else if (oldG[g.id] && (oldG[g.id].name !== g.name || oldG[g.id].handicap !== g.handicap)) {
+      } else if (oldG[g.id] && (oldG[g.id].name !== g.name || oldG[g.id].handicap !== g.handicap ||
+                 oldG[g.id].email !== g.email || oldG[g.id].phone !== g.phone || oldG[g.id].ghin !== g.ghin)) {
         fail(await client.from("golfers")
-          .update({ name: g.name, handicap: g.handicap }).eq("id", g.id), "rename golfer");
+          .update(golferToRow(g)).eq("id", g.id), "update golfer");
       }
     }
     var nowGIds = {};
@@ -1065,6 +1150,7 @@ const SharedStore = (() => {
   async function createSharedTrip(client, src, opts) {
     opts = opts || {};
     var fail = function (r, what) { if (r && r.error) throw new Error(what + ": " + (r.error.message || r.error)); return r; };
+    var insertRows = async function (table, rows, what) { if (!rows || !rows.length) return null; return fail(await client.from(table).insert(rows), what); };
     var slug = await uniqueSlug(client, slugify(src.trip.name));
     var tripRow = {
       name: src.trip.name, destination: src.trip.area, organizer: src.trip.organizer,
@@ -1079,28 +1165,28 @@ const SharedStore = (() => {
         .insert({ trip_id: tripId, user_id: opts.ownerId, role: "owner" }), "add owner");
     }
 
-    fail(await client.from("golfers").insert(src.golfers.map(function (x) {
-      return { trip_id: tripId, name: x.name, handicap: +x.hc || 0 };
-    })), "seed golfers");
+    await insertRows("golfers", src.golfers.map(function (x) {
+      return Object.assign({ trip_id: tripId }, golferToRow(x));
+    }), "seed golfers");
 
-    fail(await client.from("date_options").insert(src.dates.map(function (x, i) {
+    await insertRows("date_options", src.dates.map(function (x, i) {
       var range = parseDateRange(x.label);
       return { trip_id: tripId, label: x.label, sub: x.sub || "", sort: i,
                starts_on: range ? range[0] : null, ends_on: range ? range[1] : null };
-    })), "seed dates");
+    }), "seed dates");
 
-    fail(await client.from("course_options").insert(src.courses.map(function (x, i) {
+    await insertRows("course_options", src.courses.map(function (x, i) {
       return { trip_id: tripId, name: x.name, loc: x.loc || "", drive: x.drive || "",
                verdict: x.verdict || "", researched: !!x.researched, fits_rule: !!x.fitsRule,
                price_pp: +x.price || 0, price_text: x.priceText || "",
                photo_key: "course" + ((i % 3) + 1), sort: i };
-    })), "seed courses");
+    }), "seed courses");
 
     /* cost template only: amounts carry over, nobody has fronted or paid yet */
-    fail(await client.from("cost_items").insert(src.costs.items.map(function (x, i) {
+    await insertRows("cost_items", src.costs.items.map(function (x, i) {
       return { trip_id: tripId, label: x.label, description: x.desc || "",
                amount: +x.pp || 0, paid_by: null, sort: i };
-    })), "seed costs");
+    }), "seed costs");
 
     /* stays intentionally start empty — the group proposes real listings */
     return { id: tripId, slug: slug };
@@ -1429,9 +1515,13 @@ const SharedStore = (() => {
     setIdentity: setIdentity,
     parseDateRange: parseDateRange,
     snapshotShared: snapshotShared,
+    golferToRow: golferToRow,
+    rowToGolfer: rowToGolfer,
     fetchTripState: fetchTripState,
     pushDiff: pushDiff,
     createSharedTrip: createSharedTrip,
+    fetchGolferContacts: fetchGolferContacts,
+    upsertGolferContact: upsertGolferContact,
     getSessionUser: getSessionUser,
     getSession: getSession,
     signInWithGoogle: signInWithGoogle,
@@ -1500,14 +1590,6 @@ function startProduction() {
   if (!confirm("Start a production trip? This wipes ALL demo votes, scores, paid flags and blanks the roster. You can restore the demo any time with \"Reset demo data\".")) return;
   S = productionSeed(); save(); renderAll(); switchTab("trip");
 }
-function setRosterName(gid, val) {
-  const g = golfer(gid); if (!g) return;
-  const v = String(val == null ? "" : val).trim();
-  g.name = v || "Player";
-  save(); renderTrip(); renderHero();
-}
-function setRosterHc(gid, val) { setHc(gid, val); renderTrip(); }
-
 /* ============ state-parameterized core (pure; used by Caddie + tests) ============ */
 function golferState(st, id) { return st.golfers.find(g => g.id === id); }
 function gnameState(st, id) { const g = golferState(st, id); return g ? g.name : "?"; }
@@ -1655,9 +1737,9 @@ function renderHero() {
     ? "linear-gradient(180deg,rgba(244,248,245,.94) 0%,rgba(244,248,245,.28) 32%,rgba(244,248,245,.12) 58%,rgba(244,248,245,.88) 100%),url(\"" + ART.hero + "\")"
     : "";
   heroEl.innerHTML =
-    '<div class="eyebrow"><span class="pulse-dot"></span>' + (SHARED ? "Caddie · Live shared trip" : "Caddie · Oct 2026") +
-    '<span class="mode-pill ' + (S.mode === "shared" ? "shared" : (S.mode === "production" ? "prod" : "demo")) + '">' +
-      (S.mode === "shared" ? "Shared" : (S.mode === "production" ? "Production" : "Demo")) + "</span></div>" +
+    '<div class="eyebrow"><span class="pulse-dot"></span>Caddie · Oct 2026' +
+    '<span class="mode-pill ' + (S.mode === "production" ? "prod" : "demo") + '">' +
+      (S.mode === "production" ? "Production" : "Demo") + "</span></div>" +
     "<h1>" + esc(S.trip.name).replace(/2026/, '<span class="hl">2026</span>') + "</h1>" +
     '<div class="sub">' + esc(S.trip.area) + " · Organized by " + esc(S.trip.organizer) +
     " · " + S.golfers.length + " golfers</div>" +
@@ -1670,27 +1752,311 @@ function renderHero() {
     "</div>";
 }
 
+/* ================= Trip tab: guided flow, roster, wizard ================= */
+function isPlaceholderName(n) { return /^player \d+$/i.test(String(n || "").trim()); }
+
+/* --- generic sheet modal (player editor, trip wizard) --- */
+let PE = null; /* active player editor: {player, onSave, returnTo} */
+function openModal(html) {
+  $("#sheet-card").innerHTML = html;
+  $("#sheet-modal").classList.add("open");
+}
+function closeModal() { $("#sheet-modal").classList.remove("open"); PE = null; }
+function modalDismiss() {
+  if (PE) { const rt = PE.returnTo; PE = null; if (rt) { rt(); return; } }
+  closeModal();
+}
+function scrollToCard(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* --- player editor --- */
+function blankPlayer() {
+  return { id: "g" + Date.now(), name: "", email: "", phone: "", hc: null, ghin: "" };
+}
+/* Contact lookup: shared mode reads the owner-only book; local mode reads the golfer object. */
+function contactFor(gid) {
+  if (SHARED) return ((S.contacts || {})[gid]) || { email: "", phone: "", ghin: "" };
+  const g = gid ? golfer(gid) : null;
+  return { email: (g && g.email) || "", phone: (g && g.phone) || "", ghin: (g && g.ghin) || "" };
+}
+function openPlayerEditor(player, onSave, returnTo, showContacts) {
+  const p = player ? Object.assign(blankPlayer(), player) : blankPlayer();
+  const c = contactFor(p.id);
+  p.email = c.email; p.phone = c.phone; p.ghin = c.ghin;
+  const sc = (typeof showContacts === "undefined") ? true : !!showContacts;
+  PE = { player: p, onSave: onSave || null, returnTo: returnTo || null };
+  const isNew = !(player && player.name);
+  const tbd = (p.hc == null || p.hc === "");
+  const contactHtml = sc ?
+    '<label class="f" for="pe-email">Email</label>' +
+    '<input type="email" id="pe-email" placeholder="name@example.com" value="' + esc(p.email) + '" autocomplete="off">' +
+    '<label class="f" for="pe-phone">Phone</label>' +
+    '<input type="tel" id="pe-phone" placeholder="(555) 123-4567" value="' + esc(p.phone) + '" autocomplete="off">' : "";
+  const ghinHtml = sc ?
+    '<label class="f" for="pe-ghin">GHIN # <span class="muted small">(optional)</span></label>' +
+    '<input type="text" id="pe-ghin" inputmode="numeric" placeholder="e.g. 1234567" value="' + esc(p.ghin) + '" autocomplete="off">' +
+    '<p class="muted small">Live GHIN sync isn\u2019t available yet \u2014 official handicap data needs a USGA license. We keep the number on file for when it is.</p>' : "";
+  openModal(
+    '<button class="sheet-x" onclick="modalDismiss()" aria-label="Close">\u2715</button>' +
+    '<div class="kicker">Player</div><h2>' + (isNew ? "Add player" : "Edit player") + "</h2>" +
+    '<label class="f" for="pe-name">Name</label>' +
+    '<input type="text" id="pe-name" placeholder="Full name" value="' + esc(p.name) + '" autocomplete="off">' +
+    contactHtml +
+    '<label class="f" for="pe-hc">Handicap</label>' +
+    '<div class="row"><input type="number" id="pe-hc" min="0" max="54" step="1" style="max-width:130px" value="' +
+      (tbd ? "" : esc(String(Math.round(+p.hc)))) + '"' + (tbd ? " disabled" : "") + ">" +
+    '<label class="tbdline" style="margin:0"><input type="checkbox" id="pe-tbd"' + (tbd ? " checked" : "") +
+      ' onchange="document.getElementById(\'pe-hc\').disabled=this.checked"> TBD</label></div>' +
+    ghinHtml +
+    (sc && SHARED ? '<p class="muted small">Contact details are private \u2014 only you as the organizer can see them.</p>' : "") +
+    '<div class="row" style="margin-top:12px"><button class="btn lime grow" onclick="savePlayerEditor()">Save player</button>' +
+    '<button class="btn" onclick="modalDismiss()">Cancel</button></div>'
+  );
+  setTimeout(() => { const el = $("#pe-name"); if (el) el.focus({ preventScroll: true }); }, 60);
+}
+function savePlayerEditor() {
+  if (!PE) return;
+  const name = ($("#pe-name").value || "").trim();
+  if (!name) { toast("Give the player a name first."); $("#pe-name").focus(); return; }
+  const tbd = $("#pe-tbd").checked;
+  let hc = null;
+  if (!tbd) {
+    const raw = ($("#pe-hc").value || "").trim();
+    hc = raw === "" ? null : Math.max(0, Math.min(54, Math.round(+raw || 0)));
+  }
+  const p = PE.player;
+  p.name = name;
+  const em = $("#pe-email"), ph = $("#pe-phone"), gh = $("#pe-ghin");
+  if (em) p.email = (em.value || "").trim();
+  if (ph) p.phone = (ph.value || "").trim();
+  p.hc = hc;
+  if (gh) p.ghin = (gh.value || "").trim();
+  const cb = PE.onSave, rt = PE.returnTo;
+  PE = null;
+  if (cb) cb(p);
+  if (rt) rt(); else closeModal();
+}
+/* default onSave for the Trip-tab roster.
+   Roster (name/handicap) syncs through the shared golfers table; contact
+   details go to the owner-only book (shared) or the local golfer object. */
+function upsertRosterPlayer(p) {
+  const isShared = !!SHARED;
+  let g = golfer(p.id);
+  if (g) { g.name = p.name; g.hc = p.hc; }
+  else { g = { id: p.id, name: p.name, hc: p.hc }; S.golfers.push(g); }
+  if (!isShared) { g.email = p.email; g.phone = p.phone; g.ghin = p.ghin; }
+  else if (canViewContacts()) {
+    if (!S.contacts) S.contacts = {};
+    S.contacts[p.id] = { email: p.email || "", phone: p.phone || "", ghin: p.ghin || "" };
+    contactsDirty[p.id] = true;
+  }
+  save();
+  if (isShared) schedulePush(); /* roster delta now; contacts follow in doPush after id remap */
+  renderTrip(); renderHero();
+}
+function editRosterPlayer(gid) {
+  const g = golfer(gid); if (!g) return;
+  openPlayerEditor(Object.assign({}, g), upsertRosterPlayer, null, canViewContacts());
+}
+
+/* --- setup checklist --- */
+function tripChecklist() {
+  const isShared = !!SHARED;
+  const named = S.golfers.filter(g => g.name && g.name.trim() && !isPlaceholderName(g.name));
+  return [
+    { label: "Trip details", sub: "Name + destination set",
+      done: !!(S.trip.name.trim() && S.trip.area.trim()), target: "card-details" },
+    { label: "Build the crew", sub: named.length + " of " + S.golfers.length + " players named",
+      done: S.golfers.length >= 2 && named.length === S.golfers.length, target: "card-crew" },
+    { label: "Share the trip", sub: isShared ? "Link is live" : "Create the shared link",
+      done: isShared, target: "card-share" }
+  ];
+}
+
+/* --- new-trip wizard --- */
+let WIZ = null;
+function openTripWizard() {
+  if (!supaReady()) {
+    alert("Backend not configured yet:\n\n1. Create a free project at supabase.com\n2. Run supabase-schema.sql in its SQL editor\n3. Paste the Project URL + anon key into the CONFIG block at the top of this file\n4. Re-upload this file\n\nThen come back and tap this again.");
+    return;
+  }
+  const client = supaClient();
+  if (!client) { alert("Couldn't load the Supabase library — check your connection and reload."); return; }
+  if (!AUTH.user) { openLoginModal("create-trip"); return; }
+  WIZ = { step: 1, name: "", area: "", organizer: "", startMode: "blank",
+          crew: [], copiedMode: null, busy: false };
+  if (!SHARED) {
+    WIZ.name = S.trip.name || ""; WIZ.area = S.trip.area || "";
+    WIZ.organizer = isPlaceholderName(S.trip.organizer) ? "" : (S.trip.organizer || "");
+  }
+  renderWizard();
+}
+function wizardReadStep1() {
+  const n = $("#wz-name"), a = $("#wz-area"), o = $("#wz-org");
+  if (n) WIZ.name = (n.value || "").trim();
+  if (a) WIZ.area = (a.value || "").trim();
+  if (o) WIZ.organizer = (o.value || "").trim();
+}
+function wizardNext() {
+  wizardReadStep1();
+  if (!WIZ.name) { toast("Give the trip a name."); const e = $("#wz-name"); if (e) e.focus(); return; }
+  if (!WIZ.area) { toast("Add a destination."); const e = $("#wz-area"); if (e) e.focus(); return; }
+  if (WIZ.copiedMode !== WIZ.startMode) {
+    WIZ.crew = WIZ.startMode === "copy" && !SHARED
+      ? S.golfers.map(g => ({ id: "g" + Date.now() + Math.floor(Math.random() * 1e6),
+          name: g.name, email: g.email || "", phone: g.phone || "",
+          hc: (g.hc == null ? null : +g.hc), ghin: g.ghin || "" }))
+      : [];
+    WIZ.copiedMode = WIZ.startMode;
+  }
+  WIZ.step = 2; renderWizard();
+}
+function wizardAddPlayer() {
+  openPlayerEditor(null, p => { WIZ.crew.push(p); }, renderWizard, true);
+}
+function wizardEditPlayer(id) {
+  const m = WIZ.crew.find(x => x.id === id);
+  if (!m) return;
+  openPlayerEditor(Object.assign({}, m), p => { Object.assign(m, p); }, renderWizard, true);
+}
+function wizardRemovePlayer(id) {
+  WIZ.crew = WIZ.crew.filter(x => x.id !== id);
+  renderWizard();
+}
+function renderWizard() {
+  if (!WIZ) return;
+  const dots = [1, 2, 3].map(i => "<i class='" + (i <= WIZ.step ? "on" : "") + "'></i>").join("");
+  let body = "";
+  if (WIZ.step === 1) {
+    body =
+      '<div class="kicker">New trip \u00b7 Step 1 of 3</div><h2>The basics</h2>' +
+      '<div class="wiz-progress">' + dots + "</div>" +
+      '<label class="f" for="wz-name">Trip name</label>' +
+      '<input type="text" id="wz-name" value="' + esc(WIZ.name) + '" placeholder="e.g. Fall Golf Trip 2026" autocomplete="off">' +
+      '<label class="f" for="wz-area">Destination area</label>' +
+      '<input type="text" id="wz-area" value="' + esc(WIZ.area) + '" placeholder="e.g. Lake of the Ozarks, MO" autocomplete="off">' +
+      '<label class="f" for="wz-org">Organizer</label>' +
+      '<input type="text" id="wz-org" value="' + esc(WIZ.organizer) + '" placeholder="Your name" autocomplete="off">' +
+      (!SHARED ?
+        '<label class="f">Start from</label>' +
+        '<label class="radio-card' + (WIZ.startMode === "blank" ? " sel" : "") + '">' +
+          '<input type="radio" name="wz-mode" value="blank"' + (WIZ.startMode === "blank" ? " checked" : "") +
+          ' onchange="wizardReadStep1();WIZ.startMode=\'blank\';renderWizard()">' +
+          '<span><b>Blank trip</b><br><span class="muted small">Fresh roster \u2014 build the crew in the next step.</span></span></label>' +
+        '<label class="radio-card' + (WIZ.startMode === "copy" ? " sel" : "") + '">' +
+          '<input type="radio" name="wz-mode" value="copy"' + (WIZ.startMode === "copy" ? " checked" : "") +
+          ' onchange="wizardReadStep1();WIZ.startMode=\'copy\';renderWizard()">' +
+          '<span><b>Copy this setup</b><br><span class="muted small">Dates, courses, golfers and the cost template carry over. Votes start at zero.</span></span></label>'
+        : "") +
+      '<div class="row" style="margin-top:14px"><button class="btn lime grow" onclick="wizardNext()">Continue</button>' +
+      '<button class="btn" onclick="closeModal();WIZ=null;">Cancel</button></div>';
+  } else if (WIZ.step === 2) {
+    const rows = WIZ.crew.map(m =>
+      "<div class='wiz-crew-row'><div class='grow'><b>" + esc(m.name) + "</b>" +
+      ((m.email || m.phone) ? "<div class='roster-sub'>" + esc([m.email, m.phone].filter(Boolean).join(" \u00b7 ")) + "</div>" : "") + "</div>" +
+      "<span class='hcpill" + (m.hc == null ? " tbd" : "") + "'>" + (m.hc == null ? "TBD" : "HC " + (+m.hc)) + "</span>" +
+      "<button class='btn sm' onclick=\"wizardEditPlayer('" + m.id + "')\">Edit</button>" +
+      "<button class='btn sm danger' onclick=\"wizardRemovePlayer('" + m.id + "')\" aria-label='Remove'>\u00d7</button></div>"
+    ).join("");
+    body =
+      '<div class="kicker">New trip \u00b7 Step 2 of 3</div><h2>The crew</h2>' +
+      '<div class="wiz-progress">' + dots + "</div>" +
+      '<p class="muted small">Add the players now, or skip and do it later from the Trip tab. Emails, phones and GHIN numbers can be added any time.</p>' +
+      rows +
+      '<button class="btn block" style="margin-top:10px" onclick="wizardAddPlayer()">+ Add player</button>' +
+      '<div class="row" style="margin-top:14px"><button class="btn grow" onclick="WIZ.step=1;renderWizard()">Back</button>' +
+      '<button class="btn lime grow" onclick="WIZ.step=3;renderWizard()">Continue' + (WIZ.crew.length ? "" : " \u2014 skip for now") + "</button></div>";
+  } else {
+    const crewList = WIZ.crew.length
+      ? WIZ.crew.map(m => esc(m.name) + (m.hc == null ? " (TBD)" : " (" + (+m.hc) + ")")).join(", ")
+      : "No players yet \u2014 add them from the Trip tab later";
+    body =
+      '<div class="kicker">New trip \u00b7 Step 3 of 3</div><h2>Review &amp; create</h2>' +
+      '<div class="wiz-progress">' + dots + "</div>" +
+      '<div class="card" style="margin:10px 0"><b>' + esc(WIZ.name) + "</b><br><span class='muted small'>" +
+        esc(WIZ.area) + " \u00b7 Organized by " + esc(WIZ.organizer || "\u2014") + "</span></div>" +
+      '<p class="muted small"><b style="color:var(--ink)">' + WIZ.crew.length + " player" + (WIZ.crew.length === 1 ? "" : "s") +
+        ":</b> " + crewList + "</p>" +
+      '<p class="muted small">You\u2019ll be the trip owner and get a share link for the crew. Votes start at zero.</p>' +
+      '<div class="row" style="margin-top:14px"><button class="btn grow" onclick="WIZ.step=2;renderWizard()">Back</button>' +
+      '<button class="btn lime grow" id="wz-create" onclick="wizardCreate()">Create trip</button></div>';
+  }
+  openModal('<button class="sheet-x" onclick="closeModal();WIZ=null;" aria-label="Close">\u2715</button>' + body);
+}
+async function wizardCreate() {
+  if (!WIZ || WIZ.busy) return;
+  WIZ.busy = true;
+  const btn = $("#wz-create");
+  if (btn) { btn.disabled = true; btn.textContent = "Creating\u2026"; }
+  try {
+    const client = supaClient();
+    if (!client || !AUTH.user) throw new Error("Sign-in expired \u2014 log in and try again.");
+    const fromCopy = WIZ.copiedMode === "copy" && !SHARED;
+    const src = {
+      trip: { name: WIZ.name, area: WIZ.area, organizer: WIZ.organizer },
+      golfers: WIZ.crew,
+      dates: fromCopy ? S.dates.map(d => ({ label: d.label, sub: d.sub || "",
+        starts_on: d.starts_on || null, ends_on: d.ends_on || null })) : [],
+      courses: fromCopy ? S.courses.map(c => ({ name: c.name, loc: c.loc || "", drive: c.drive || "",
+        verdict: c.verdict || "", researched: !!c.researched, fitsRule: !!c.fitsRule,
+        price: c.price || 0, priceText: c.priceText || "" })) : [],
+      costs: { items: [
+        { label: "Lodging", desc: "2 nights, dbl occupancy", pp: 140 },
+        { label: "Golf", desc: "3 rounds + carts", pp: 171 },
+        { label: "Food & drinks", desc: "group tab estimate", pp: 120 } ] }
+    };
+    const res = await SharedStore.createSharedTrip(client, src, { ownerId: AUTH.user.id });
+    /* owner-only contacts: match seeded golfers by name, then upsert */
+    const withContacts = WIZ.crew.filter(p => (p.email || "") || (p.phone || "") || (p.ghin || ""));
+    if (withContacts.length) {
+      try {
+        const gr = await client.from("golfers").select("id,name").eq("trip_id", res.id);
+        for (const p of withContacts) {
+          const match = (gr.data || []).find(r => r.name === p.name);
+          if (match) await SharedStore.upsertGolferContact(client, res.id, match.id,
+            { email: p.email || "", phone: p.phone || "", ghin: p.ghin || "" });
+        }
+      } catch (e) { /* roster is saved; contacts can be re-added on the Trip tab */ }
+    }
+    location.href = location.pathname + "?trip=" + encodeURIComponent(res.slug);
+  } catch (e) {
+    if (WIZ) WIZ.busy = false;
+    alert("Couldn't create the trip: " + (e && e.message ? e.message : e));
+    renderWizard();
+  }
+}
+
 /* ================= Trip tab ================= */
 function renderTrip() {
   const isShared = !!SHARED;
   const orgName = (S.trip.organizer || "").trim().toLowerCase();
-  const opts = S.golfers.map(g => {
-    const isOrg = isShared ? (orgName && g.name.trim().toLowerCase() === orgName) : g.id === "chad";
-    return "<div class='roster-row'>" +
-    "<input type='text' value='" + esc(g.name) + "' onchange=\"setRosterName('" + g.id + "',this.value)\" aria-label='Golfer name'>" +
-    (isOrg ? " <span class='badge est'>Organizer</span>" : "") +
-    "<input type='number' class='hcbox' min='0' max='54' value='" + (+g.hc || 0) + "' onchange=\"setRosterHc('" + g.id + "',this.value)\" aria-label='Handicap'>" +
-    (isShared ? "<button class='btn sm danger' onclick=\"removeGolfer('" + g.id + "')\" aria-label='Remove golfer'>×</button>" : "") +
-    "</div>";
-  }).join("");
+  const az = (isShared && SHARED.authz) || {};
+  const canEditTrip = !isShared || !az.ownerId || az.isOwner;
 
   let html = "";
   if (bootNotice) html += '<div class="notice">' + esc(bootNotice) + "</div>";
 
-  const az = (isShared && SHARED.authz) || {};
-  const canEditTrip = !isShared || !az.ownerId || az.isOwner;
+  /* --- setup checklist --- */
+  if (canEditTrip) {
+    const steps = tripChecklist();
+    const done = steps.filter(s => s.done).length;
+    html += '<div class="card"><div class="kicker">Get started</div><h2>Trip setup</h2>' +
+      '<p class="muted small" style="margin:4px 0 0">' + done + " of " + steps.length +
+      " done \u2014 tap a step to jump to it.</p>" +
+      '<div class="check-bar"><i style="width:' + Math.round(done / steps.length * 100) + '%"></i></div>' +
+      '<div class="check-steps">' + steps.map((s, i) =>
+        '<button class="check-step' + (s.done ? " done" : "") + '" onclick="scrollToCard(\'' + s.target + '\')">' +
+        '<span class="check-dot">' + (s.done ? "\u2713" : (i + 1)) + "</span>" +
+        '<span class="grow"><b>' + esc(s.label) + "</b><br><span class='muted small'>" + esc(s.sub) + "</span></span>" +
+        (s.done ? "" : '<span class="muted">\u2192</span>') + "</button>"
+      ).join("") + "</div></div>";
+  }
+
+  /* --- step 1: trip details --- */
   const disAttr = canEditTrip ? "" : " disabled";
-  html += '<div class="card"><div class="kicker">Setup</div><h2>Trip details</h2>' +
+  html += '<div class="card" id="card-details"><div class="kicker">Step 1</div><h2>Trip details</h2>' +
     '<label class="f">Trip name</label>' +
     '<input type="text" id="t-name" value="' + esc(S.trip.name) + '"' + disAttr + '>' +
     '<label class="f">Destination area</label>' +
@@ -1700,27 +2066,46 @@ function renderTrip() {
     (canEditTrip ? "" : '<p class="muted small" style="margin:8px 0 0">Only the trip owner can edit these details.</p>') +
     "</div>";
 
+  /* --- account: my trips + new trip --- */
   if (AUTH.user) {
     html += '<div class="card"><div class="kicker">Account</div><h2>My trips</h2>' +
+      '<button class="btn lime block" onclick="openTripWizard()">+ Start a new trip</button>' +
       '<div id="mytrips-list"><p class="muted small">Loading&hellip;</p></div></div>';
   }
 
+  /* --- identity --- */
   if (isShared) {
     html += '<div class="card"><div class="kicker">This device</div><h2>I am&hellip;</h2>' +
-      '<p class="muted small" style="margin:4px 0 0">Pick your name once — this phone remembers it and votes as you.</p>' +
+      '<p class="muted small" style="margin:4px 0 0">Pick your name once \u2014 this phone remembers it and votes as you.</p>' +
       '<label class="f">I am</label><select id="iam">' + iamChoose() +
       S.golfers.map(g => "<option value='" + g.id + "'" + (g.id === S.votingAs ? " selected" : "") + ">" + esc(g.name) + "</option>").join("") +
       "</select></div>";
   }
 
-  html += '<div class="card"><div class="kicker">The crew</div><h2>The foursomes</h2><div class="muted" style="margin-bottom:6px">' +
-    S.golfers.length + ' golfers · tap a name or handicap to edit</div>' + opts +
-    (isShared ? '<div class="row" style="margin-top:10px"><input type="text" id="new-golfer-name" placeholder="New golfer name" class="grow">' +
-      '<button class="btn sm" onclick="addGolfer()">Add</button></div>' : "") + "</div>";
+  /* --- step 2: the crew --- */
+  const rows = S.golfers.map(g => {
+    const isOrg = isShared ? (orgName && g.name.trim().toLowerCase() === orgName) : g.id === "chad";
+    const cc = contactFor(g.id);
+    const sub = [cc.email, cc.phone].filter(Boolean).join(" \u00b7 ");
+    return "<div class='roster-row" + (canEditTrip ? " editable" : "") + "'" +
+      (canEditTrip ? " onclick=\"editRosterPlayer('" + g.id + "')\"" : "") + ">" +
+      "<div class='grow' style='min-width:0'><div class='roster-name'>" + esc(g.name) +
+      (isOrg ? " <span class='badge est'>Organizer</span>" : "") + "</div>" +
+      (sub ? "<div class='roster-sub'>" + esc(sub) + "</div>" : "") + "</div>" +
+      "<span class='hcpill" + (g.hc == null ? " tbd" : "") + "'>" + (g.hc == null ? "TBD" : "HC " + (+g.hc)) + "</span>" +
+      (canEditTrip ? "<button class='btn sm danger' onclick=\"event.stopPropagation();removeGolfer('" + g.id + "')\" aria-label='Remove golfer'>\u00d7</button>" : "") +
+      "</div>";
+  }).join("");
+  html += '<div class="card" id="card-crew"><div class="kicker">Step 2</div><h2>The crew</h2>' +
+    '<p class="muted" style="margin:4px 0 0">' + S.golfers.length + " player" + (S.golfers.length === 1 ? "" : "s") +
+    (canEditTrip ? " \u00b7 tap a player to edit name, contact info &amp; handicap" : "") + "</p>" + rows +
+    (canEditTrip ? '<button class="btn block" style="margin-top:10px" onclick="openPlayerEditor(null,upsertRosterPlayer,null,canViewContacts())">+ Add player</button>' : "") +
+    "</div>";
 
+  /* --- step 3: share --- */
   if (isShared) {
-    html += '<div class="card"><div class="kicker">Invite</div><h2>Share the trip</h2>' +
-      '<p class="muted small">Anyone with the link votes from their own phone — no account needed to vote.</p>' +
+    html += '<div class="card" id="card-share"><div class="kicker">Step 3</div><h2>Share the trip</h2>' +
+      '<p class="muted small">Anyone with the link votes from their own phone \u2014 no account needed to vote.</p>' +
       '<button class="btn lime block" onclick="copyShareLink()">Copy share link</button></div>';
     if (AUTH.user && !az.isOwner && !az.isMember) {
       html += '<div class="card"><div class="kicker">Membership</div><h2>Join this trip</h2>' +
@@ -1729,7 +2114,7 @@ function renderTrip() {
     }
     if (AUTH.user && !az.ownerId && !az.isOwner) {
       html += '<div class="card"><div class="kicker">Ownership</div><h2>Claim this trip</h2>' +
-        '<p class="muted small">This trip has no owner yet. Claim it to manage the details — nothing changes for the crew.</p>' +
+        '<p class="muted small">This trip has no owner yet. Claim it to manage the details \u2014 nothing changes for the crew.</p>' +
         '<button class="btn block" onclick="claimTripUI()">Claim this trip</button></div>';
     }
     if (!az.ownerId || az.isOwner) {
@@ -1739,21 +2124,22 @@ function renderTrip() {
         '<button class="btn danger block" onclick="deleteTrip()">Delete shared trip</button></div>';
     }
   } else {
-    html += '<div class="card"><div class="kicker">Go shared</div><h2>Multi-user trip</h2>' +
-      '<p class="muted small">Put this trip on a shared backend: all 10 golfers vote from their own phones with live updates. Needs a free Supabase project (one-time setup, keys go in the CONFIG block at the top of this file) and a Caddie account — you\'ll be asked to log in.</p>' +
-      '<button class="btn lime block" onclick="createSharedTripUI()">Create shared trip link</button></div>' +
+    html += '<div class="card" id="card-share"><div class="kicker">Step 3</div><h2>Share the trip</h2>' +
+      '<p class="muted small">Put this trip on a shared backend: the whole crew votes from their own phones with live updates. A quick 3-step setup \u2014 you can start blank or copy this setup.</p>' +
+      '<button class="btn lime block" onclick="openTripWizard()">Create shared trip</button></div>' +
       '<div class="card"><div class="kicker">Go live</div><h2>Production trip</h2>' +
-      '<p class="muted small">Wipe the demo data and start clean for the real thing: same dates, courses and stays, zeroed votes, a blank roster and fresh costs. Type the real 10 names above.</p>' +
+      '<p class="muted small">Wipe the demo data and start clean for the real thing: same dates, courses and stays, zeroed votes, a blank roster and fresh costs.</p>' +
       '<button class="btn block" onclick="startProduction()">Start production trip</button></div>';
   }
 
+  /* --- group update --- */
   html += '<div class="card"><div class="kicker">Share</div><h2>Group chat update</h2>' +
-    '<p class="muted small">Copies a plain-text trip update — leaders, per-person cost, who still needs to vote, who owes whom — ready to paste into the group chat.</p>' +
+    '<p class="muted small">Copies a plain-text trip update \u2014 leaders, per-person cost, who still needs to vote, who owes whom \u2014 ready to paste into the group chat.</p>' +
     '<button class="btn lime block" onclick="copyGroupUpdate()">Copy group update</button></div>';
 
   if (!isShared) {
     html += '<div class="card"><div class="kicker">Demo</div><h2>Demo data</h2>' +
-      '<p class="muted small">This app ships pre-loaded with a realistic trip in progress — names, votes, scores and paid flags are fictional demo data. The three in-range course figures come from real research; the stretch-option figures are rough estimates.</p>' +
+      '<p class="muted small">This app ships pre-loaded with a realistic trip in progress \u2014 names, votes, scores and paid flags are fictional demo data. The three in-range course figures come from real research; the stretch-option figures are rough estimates.</p>' +
       '<button class="btn danger block" onclick="resetDemo()">Reset demo data</button></div>';
   }
 
@@ -2962,8 +3348,9 @@ async function doPush() {
   if (pushBusy) { schedulePush(); return; }
   pushBusy = true; pushPending = false;
   try {
-    await SharedStore.pushDiff(SHARED.client, SHARED.tripId, lastServer, S);
+    const remap = await SharedStore.pushDiff(SHARED.client, SHARED.tripId, lastServer, S);
     lastServer = SharedStore.snapshotShared(S);
+    await syncSharedContacts(remap);
   } catch (e) {
     pushPending = true;
     clearTimeout(pushTimer);
@@ -3080,31 +3467,11 @@ async function boot() {
     }
   }
   S = load();
+  if (!S.contacts) S.contacts = {}; /* owner-only contact book: golferId -> {email,phone,ghin} */
   renderAll();
 }
 
 /* ---- shared trip actions (Trip tab) ---- */
-async function createSharedTripUI() {
-  if (!supaReady()) {
-    alert("Backend not configured yet:\n\n1. Create a free project at supabase.com\n2. Run supabase-schema.sql in its SQL editor\n3. Paste the Project URL + anon key into the CONFIG block at the top of this file\n4. Re-upload this file\n\nThen come back and tap this again.");
-    return;
-  }
-  const client = supaClient();
-  if (!client) { alert("Couldn't load the Supabase library — check your connection and reload."); return; }
-  if (!AUTH.user) {
-    toast("Log in first — the trip will be created under your account.");
-    openLoginModal("create-trip");
-    return;
-  }
-  if (!confirm("Create a shared trip from the current setup?\n\nDates, courses, golfers and the cost template carry over. Votes start at zero. You'll get a link to share with the crew.")) return;
-  toast("Creating shared trip…");
-  try {
-    const res = await SharedStore.createSharedTrip(client, S, { ownerId: AUTH.user.id });
-    location.href = location.pathname + "?trip=" + encodeURIComponent(res.slug);
-  } catch (e) {
-    alert("Couldn't create the trip: " + (e && e.message ? e.message : e));
-  }
-}
 function copyShareLink() {
   if (!SHARED) return;
   const link = shareLink(SHARED.tripId, S.trip && S.trip.slug);
@@ -3148,18 +3515,13 @@ async function deleteTrip() {
   try { if (realtimeCh) await SHARED.client.removeChannel(realtimeCh); } catch (e) {}
   location.href = location.pathname;
 }
-function addGolfer() {
-  const inp = document.getElementById("new-golfer-name");
-  const v = ((inp && inp.value) || "").trim();
-  if (!v) { toast("Type a name first."); return; }
-  S.golfers.push({ id: "g" + Date.now(), name: v, hc: 18 });
-  save(); renderTrip(); renderHero();
-}
 function removeGolfer(gid) {
   if (S.golfers.length <= 1) { alert("A trip needs at least one golfer."); return; }
   const g = golfer(gid);
   if (!confirm("Remove " + (g ? g.name : "this golfer") + " from the trip? Their votes and scores go too.")) return;
   S.golfers = S.golfers.filter(x => x.id !== gid);
+  if (S.contacts) delete S.contacts[gid];
+  delete contactsDirty[gid];
   ["dates", "courses"].forEach(k => S[k].forEach(o => { o.votes = (o.votes || []).filter(v => v !== gid); }));
   (S.stays || []).forEach(o => { o.votes = (o.votes || []).filter(v => v !== gid); });
   S.costs.items.forEach(it => { if (it.paidBy === gid) it.paidBy = ""; });
@@ -3224,7 +3586,7 @@ function initAuth() {
         if (pendingPostLogin) {
           const p = pendingPostLogin; pendingPostLogin = null;
           closeLoginModal();
-          if (p === "create-trip") createSharedTripUI();
+          if (p === "create-trip") openTripWizard();
           else if (p === "delete-trip") deleteTrip();
         }
         if (SHARED) refreshTripAuthz();
@@ -3368,7 +3730,36 @@ async function refreshTripAuthz() {
   } catch (e) {
     SHARED.authz = { userId: null, ownerId: null, isMember: false, isOwner: false };
   }
+  await loadSharedContacts();
   renderTrip(); renderHero();
+}
+/* Owner-only contact book. Crew on the share link never sees these fields. */
+function canViewContacts() { return !SHARED || (SHARED.authz && SHARED.authz.isOwner); }
+let contactsDirty = {};
+async function loadSharedContacts() {
+  S.contacts = {}; contactsDirty = {};
+  if (!SHARED || !canViewContacts()) return;
+  try { S.contacts = await SharedStore.fetchGolferContacts(SHARED.client, SHARED.tripId); }
+  catch (e) { S.contacts = {}; }
+  save();
+}
+async function syncSharedContacts(remap) {
+  if (!SHARED || !canViewContacts()) return;
+  if (!S.contacts) S.contacts = {};
+  if (remap) {
+    const nc = {}, nd = {};
+    Object.keys(S.contacts).forEach(k => { nc[remap[k] || k] = S.contacts[k]; });
+    Object.keys(contactsDirty).forEach(k => { nd[remap[k] || k] = true; });
+    S.contacts = nc; contactsDirty = nd;
+  }
+  for (const gid of Object.keys(contactsDirty)) {
+    if (!SharedStore.isUuid(gid)) continue; /* golfer not on server yet; next push */
+    try {
+      await SharedStore.upsertGolferContact(SHARED.client, SHARED.tripId, gid, S.contacts[gid] || {});
+      delete contactsDirty[gid];
+    } catch (e) { /* keep dirty; retry on next push */ }
+  }
+  save();
 }
 async function joinTripUI() {
   if (!SHARED) return;
@@ -3430,6 +3821,8 @@ $("#sheet-close").addEventListener("click", closeSheet);
 $("#sheet-backdrop").addEventListener("click", closeSheet);
 $("#auth-x").addEventListener("click", closeLoginModal);
 $("#auth-modal").addEventListener("click", e => { if (e.target.id === "auth-modal") closeLoginModal(); });
+$("#sheet-modal").addEventListener("click", e => { if (e.target.id === "sheet-modal") modalDismiss(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#sheet-modal").classList.contains("open")) modalDismiss(); });
 $("#auth-google").addEventListener("click", googleSignIn);
 $("#auth-submit").addEventListener("click", submitEmailAuth);
 $("#auth-switch").addEventListener("click", () => {
