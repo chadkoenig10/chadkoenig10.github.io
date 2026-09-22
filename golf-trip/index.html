@@ -319,20 +319,34 @@ table.score input.hc{width:48px;}
   border-radius:14px;padding:12px;margin-top:8px;cursor:pointer;background:#fff;}
 .radio-card.sel{border-color:var(--fairway);box-shadow:0 0 0 3px var(--lime-glow);}
 .radio-card input{margin-top:3px;accent-color:var(--fairway);}
-/* ---- trip setup checklist ---- */
-.check-steps{margin-top:10px;}
-.check-step{position:relative;display:block;width:100%;text-align:left;cursor:pointer;
-  -webkit-appearance:none;appearance:none;
-  border:2px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);
-  padding:12px 44px 12px 58px;margin:8px 0 0;font-family:var(--body);font-size:15px;line-height:1.35;}
-.check-steps .check-step:first-child{margin-top:0;}
-.check-step.done{border-color:var(--fairway);background:#f4faf0;}
-.check-dot{position:absolute;left:15px;top:50%;width:28px;height:28px;margin-top:-14px;border-radius:50%;
+/* ---- trip setup flow: one focused step at a time ---- */
+.flow-head{margin:2px 0 4px;}
+.flow-title{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+.flow-count{font-size:13px;color:var(--muted);margin-top:2px;}
+.flow-bar{height:6px;border-radius:99px;background:var(--cream);margin-top:8px;overflow:hidden;}
+.flow-bar i{display:block;height:100%;background:var(--fairway);border-radius:99px;transition:width .3s;}
+.fstep{position:relative;background:#fff;border:2px solid var(--line);border-radius:16px;
+  padding:14px 14px 14px 56px;margin-top:10px;}
+.fstep.done{border-color:var(--fairway);}
+.fstep.active{border-color:var(--ink);box-shadow:0 6px 18px rgba(20,30,20,.08);}
+.fstep.todo{opacity:.8;}
+.fstep-dot{position:absolute;left:14px;top:15px;width:28px;height:28px;border-radius:50%;
   line-height:28px;text-align:center;font-weight:800;font-size:14px;background:var(--cream);color:var(--muted);}
-.check-step.done .check-dot{background:var(--fairway);color:#fff;}
-.check-go{position:absolute;right:15px;top:50%;margin-top:-9px;color:var(--muted);font-size:18px;line-height:18px;}
-.check-bar{height:8px;border-radius:99px;background:var(--cream);margin-top:10px;overflow:hidden;}
-.check-bar i{display:block;height:100%;background:var(--fairway);border-radius:99px;transition:width .3s;}
+.fstep.done .fstep-dot{background:var(--fairway);color:#fff;}
+.fstep.active .fstep-dot{background:var(--ink);color:#fff;}
+.fstep h3{margin:0;font-size:16px;letter-spacing:-.01em;}
+.fstep-sub{font-size:13px;color:var(--muted);margin-top:2px;line-height:1.4;}
+.fstep-tap{cursor:pointer;}
+.fstep-tap:active{background:var(--cream);}
+.fstep-edit{position:absolute;right:14px;top:16px;font-size:13px;font-weight:700;color:var(--fairway);}
+.fstep-body{margin-top:12px;}
+.fstep-nav{display:flex;gap:10px;margin-top:14px;}
+.fstep-foot{margin:20px 0 6px;text-align:center;}
+.linklike{background:none;border:0;color:var(--muted);font-size:13px;font-weight:600;
+  padding:8px 10px;cursor:pointer;font-family:var(--body);-webkit-appearance:none;appearance:none;}
+.linklike.danger{color:#b3261e;}
+.mytrips{display:none;margin-top:4px;text-align:left;}
+.mytrips.open{display:block;}
 /* ---- roster ---- */
 .roster-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:2px solid var(--line);
   border-radius:14px;margin-top:8px;background:#fff;}
@@ -1865,18 +1879,34 @@ function editRosterPlayer(gid) {
   openPlayerEditor(Object.assign({}, g), upsertRosterPlayer, null, canViewContacts());
 }
 
-/* --- setup checklist --- */
-function tripChecklist() {
+/* --- setup flow: one focused step at a time --- */
+let tripStep = 0; /* 0 = auto: first incomplete step, or overview when all done */
+function tripSteps() {
   const isShared = !!SHARED;
   const named = S.golfers.filter(g => g.name && g.name.trim() && !isPlaceholderName(g.name));
+  const detailsDone = !!(S.trip.name.trim() && S.trip.area.trim());
+  const crewDone = S.golfers.length >= 2 && named.length === S.golfers.length;
+  const detSum = [S.trip.name.trim(), S.trip.area.trim()].filter(Boolean).join(" \u00b7 ");
   return [
-    { label: "Trip details", sub: "Name + destination set",
-      done: !!(S.trip.name.trim() && S.trip.area.trim()), target: "card-details" },
-    { label: "Build the crew", sub: named.length + " of " + S.golfers.length + " players named",
-      done: S.golfers.length >= 2 && named.length === S.golfers.length, target: "card-crew" },
-    { label: "Share the trip", sub: isShared ? "Link is live" : "Create the shared link",
-      done: isShared, target: "card-share" }
+    { n: 1, key: "details", label: "Trip details", done: detailsDone,
+      sub: detailsDone ? detSum : "Name it and place it" },
+    { n: 2, key: "crew", label: "Build the crew", done: crewDone,
+      sub: crewDone ? S.golfers.length + " players ready"
+                   : named.length + " of " + S.golfers.length + " players named" },
+    { n: 3, key: "share", label: "Share the trip", done: isShared,
+      sub: isShared ? "Link is live" : "Get the crew voting" }
   ];
+}
+function tripGoStep(n) {
+  tripStep = n;
+  renderTrip();
+  const el = document.getElementById("fstep-" + n);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function toggleMyTrips() {
+  const el = document.getElementById("mytrips-list");
+  if (!el) return;
+  if (el.classList.toggle("open")) loadMyTrips();
 }
 
 /* --- new-trip wizard --- */
@@ -2032,7 +2062,7 @@ async function wizardCreate() {
   }
 }
 
-/* ================= Trip tab ================= */
+/* ================= Trip tab: one focused setup step at a time ================= */
 function renderTrip() {
   const isShared = !!SHARED;
   const orgName = (S.trip.organizer || "").trim().toLowerCase();
@@ -2042,118 +2072,162 @@ function renderTrip() {
   let html = "";
   if (bootNotice) html += '<div class="notice">' + esc(bootNotice) + "</div>";
 
-  /* --- setup checklist --- */
-  if (canEditTrip) {
-    const steps = tripChecklist();
-    const done = steps.filter(s => s.done).length;
-    html += '<div class="card"><div class="kicker">Get started</div><h2>Trip setup</h2>' +
-      '<p class="muted small" style="margin:4px 0 0">' + done + " of " + steps.length +
-      " done \u2014 tap a step to jump to it.</p>" +
-      '<div class="check-bar"><i style="width:' + Math.round(done / steps.length * 100) + '%"></i></div>' +
-      '<div class="check-steps">' + steps.map((s, i) =>
-        '<button class="check-step' + (s.done ? " done" : "") + '" onclick="scrollToCard(\'' + s.target + '\')">' +
-        '<span class="check-dot">' + (s.done ? "\u2713" : (i + 1)) + "</span>" +
-        '<span class="grow"><b>' + esc(s.label) + "</b><br><span class='muted small'>" + esc(s.sub) + "</span></span>" +
-        (s.done ? "" : '<span class="check-go">\u2192</span>') + "</button>"
-      ).join("") + "</div></div>";
-  }
+  if (!canEditTrip) html += renderTripMember(isShared, az);
+  else html += renderTripOwner(isShared, az, orgName);
 
-  /* --- step 1: trip details --- */
-  const disAttr = canEditTrip ? "" : " disabled";
-  html += '<div class="card" id="card-details"><div class="kicker">Step 1</div><h2>Trip details</h2>' +
-    '<label class="f">Trip name</label>' +
-    '<input type="text" id="t-name" value="' + esc(S.trip.name) + '"' + disAttr + '>' +
-    '<label class="f">Destination area</label>' +
-    '<input type="text" id="t-area" value="' + esc(S.trip.area) + '"' + disAttr + '>' +
-    '<label class="f">Organizer</label>' +
-    '<input type="text" id="t-org" value="' + esc(S.trip.organizer) + '"' + disAttr + '>' +
-    (canEditTrip ? "" : '<p class="muted small" style="margin:8px 0 0">Only the trip owner can edit these details.</p>') +
-    "</div>";
+  $("#panel-trip").innerHTML = html;
 
-  /* --- account: my trips + new trip --- */
-  if (AUTH.user) {
-    html += '<div class="card"><div class="kicker">Account</div><h2>My trips</h2>' +
-      '<button class="btn lime block" onclick="openTripWizard()">+ Start a new trip</button>' +
-      '<div id="mytrips-list"><p class="muted small">Loading&hellip;</p></div></div>';
-  }
+  /* guarded: these inputs only exist when their step is expanded */
+  const tn = $("#t-name"), ta = $("#t-area"), to = $("#t-org");
+  if (tn) tn.addEventListener("change", e => { S.trip.name = e.target.value; save(); renderHero(); });
+  if (ta) ta.addEventListener("change", e => { S.trip.area = e.target.value; save(); renderHero(); });
+  if (to) to.addEventListener("change", e => { S.trip.organizer = e.target.value; save(); renderHero(); });
+  const iam = $("#iam");
+  if (iam) iam.addEventListener("change", e => setIdentityUI(e.target.value));
+}
 
-  /* --- identity --- */
+/* --- shared-link crew member: slim summary, no setup flow --- */
+function renderTripMember(isShared, az) {
+  const areaOrg = [S.trip.area, S.trip.organizer ? "Organized by " + S.trip.organizer : ""].filter(Boolean).join(" \u00b7 ");
+  let html = '<div class="fstep"><span class="fstep-dot">\u2713</span>' +
+    "<h3>" + esc(S.trip.name || "Golf trip") + "</h3>" +
+    '<div class="fstep-sub">' + esc(areaOrg) + (areaOrg ? " \u00b7 " : "") + S.golfers.length + " players</div></div>";
   if (isShared) {
-    html += '<div class="card"><div class="kicker">This device</div><h2>I am&hellip;</h2>' +
-      '<p class="muted small" style="margin:4px 0 0">Pick your name once \u2014 this phone remembers it and votes as you.</p>' +
-      '<label class="f">I am</label><select id="iam">' + iamChoose() +
+    html += '<div class="fstep"><span class="fstep-dot">\u25cf</span><h3>Voting as</h3>' +
+      '<div class="fstep-sub">Pick your name once \u2014 this phone remembers it.</div>' +
+      '<div class="fstep-body"><select id="iam" style="width:100%">' + iamChoose() +
       S.golfers.map(g => "<option value='" + g.id + "'" + (g.id === S.votingAs ? " selected" : "") + ">" + esc(g.name) + "</option>").join("") +
-      "</select></div>";
+      "</select></div></div>";
+    html += '<button class="btn lime block" style="margin-top:12px" onclick="copyShareLink()">Copy share link</button>';
+    if (AUTH.user && !az.isOwner && !az.isMember) {
+      html += '<div class="fstep fstep-tap" onclick="joinTripUI()"><span class="fstep-dot">+</span><h3>Join this trip</h3>' +
+        '<div class="fstep-sub">Keep it in your My trips list. Voting works without joining.</div></div>';
+    }
+    if (AUTH.user && !az.ownerId && !az.isOwner) {
+      html += '<div class="fstep fstep-tap" onclick="claimTripUI()"><span class="fstep-dot">\u2605</span><h3>Claim this trip</h3>' +
+        '<div class="fstep-sub">No owner yet \u2014 claim it to manage the details.</div></div>';
+    }
+  }
+  return html;
+}
+
+/* --- owner: guided setup flow --- */
+function renderTripOwner(isShared, az, orgName) {
+  const steps = tripSteps();
+  const doneCount = steps.filter(s => s.done).length;
+  let active = tripStep;
+  if (active < 1 || active > 3) {
+    const firstOpen = steps.find(s => !s.done);
+    active = firstOpen ? firstOpen.n : 0; /* 0 = all done: show the live overview */
   }
 
-  /* --- step 2: the crew --- */
+  let html = '<div class="flow-head"><div class="flow-title">Trip setup</div>' +
+    '<div class="flow-count">' + (doneCount === 3 ? "All set \u2014 the trip is live" : doneCount + " of 3 complete") + "</div>" +
+    '<div class="flow-bar"><i style="width:' + Math.round(doneCount / 3 * 100) + '%"></i></div></div>';
+
+  steps.forEach(s => {
+    if (s.n === active) { html += tripStepEditor(s, isShared, orgName); return; }
+    html += '<div class="fstep fstep-tap ' + (s.done ? "done" : "todo") + '" onclick="tripGoStep(' + s.n + ')">' +
+      '<span class="fstep-dot">' + (s.done ? "\u2713" : s.n) + "</span>" +
+      "<h3>" + esc(s.label) + "</h3>" +
+      '<div class="fstep-sub">' + esc(s.sub) + "</div>" +
+      '<span class="fstep-edit">' + (s.done ? "Edit" : "Start") + "</span></div>";
+  });
+
+  if (active === 0) {
+    html += '<div class="fstep active"><span class="fstep-dot">\u2713</span><h3>Trip is live</h3>' +
+      '<div class="fstep-sub">The crew votes from the link \u2014 no accounts needed.</div>' +
+      '<div class="fstep-body"><button class="btn lime block" onclick="copyShareLink()">Copy share link</button>' +
+      '<button class="btn block" style="margin-top:8px" onclick="copyGroupUpdate()">Copy group update</button></div></div>';
+  }
+
+  if (isShared && AUTH.user && !az.ownerId && !az.isOwner) {
+    html += '<div class="fstep fstep-tap" onclick="claimTripUI()"><span class="fstep-dot">\u2605</span><h3>Claim this trip</h3>' +
+      '<div class="fstep-sub">No owner yet \u2014 claim it to manage the details.</div></div>';
+  }
+
+  /* voting identity lives outside the setup flow */
+  if (isShared) {
+    html += '<div class="fstep"><span class="fstep-dot">\u25cf</span><h3>Voting as</h3>' +
+      '<div class="fstep-sub">Pick your name once \u2014 this phone remembers it.</div>' +
+      '<div class="fstep-body"><select id="iam" style="width:100%">' + iamChoose() +
+      S.golfers.map(g => "<option value='" + g.id + "'" + (g.id === S.votingAs ? " selected" : "") + ">" + esc(g.name) + "</option>").join("") +
+      "</select></div></div>";
+  }
+
+  /* secondary actions stay subtle, out of the primary journey */
+  let foot = "";
+  if (AUTH.user) {
+    foot += '<button class="linklike" onclick="toggleMyTrips()">My trips</button>';
+    foot += '<button class="linklike" onclick="openTripWizard()">+ New trip</button>';
+  }
+  if (!isShared) foot += '<button class="linklike" onclick="resetDemo()">Reset demo data</button>';
+  if (isShared && (!az.ownerId || az.isOwner)) foot += '<button class="linklike danger" onclick="deleteTrip()">Delete trip</button>';
+  if (foot) html += '<div class="fstep-foot">' + foot + "</div>";
+  if (AUTH.user) html += '<div class="mytrips" id="mytrips-list"></div>';
+  return html;
+}
+
+function tripStepEditor(s, isShared, orgName) {
+  if (s.key === "details") return tripEditorDetails();
+  if (s.key === "crew") return tripEditorCrew(orgName);
+  return tripEditorShare(isShared);
+}
+
+function tripEditorDetails() {
+  return '<div class="fstep active" id="fstep-1"><span class="fstep-dot">1</span>' +
+    "<h3>Trip details</h3>" +
+    '<div class="fstep-sub">The basics \u2014 name it and place it.</div>' +
+    '<div class="fstep-body">' +
+    '<label class="f" for="t-name">Trip name</label>' +
+    '<input type="text" id="t-name" value="' + esc(S.trip.name) + '" placeholder="e.g. Fall Golf Trip 2026" autocomplete="off">' +
+    '<label class="f" for="t-area">Destination area</label>' +
+    '<input type="text" id="t-area" value="' + esc(S.trip.area) + '" placeholder="e.g. Lake of the Ozarks, MO" autocomplete="off">' +
+    '<label class="f" for="t-org">Organizer</label>' +
+    '<input type="text" id="t-org" value="' + esc(S.trip.organizer) + '" placeholder="Your name" autocomplete="off">' +
+    '<div class="fstep-nav"><button class="btn lime grow" onclick="tripGoStep(2)">Continue</button></div>' +
+    "</div></div>";
+}
+
+function tripEditorCrew(orgName) {
+  const isShared = !!SHARED;
   const rows = S.golfers.map(g => {
     const isOrg = isShared ? (orgName && g.name.trim().toLowerCase() === orgName) : g.id === "chad";
     const cc = contactFor(g.id);
     const sub = [cc.email, cc.phone].filter(Boolean).join(" \u00b7 ");
-    return "<div class='roster-row" + (canEditTrip ? " editable" : "") + "'" +
-      (canEditTrip ? " onclick=\"editRosterPlayer('" + g.id + "')\"" : "") + ">" +
+    return "<div class='roster-row editable' onclick=\"editRosterPlayer('" + g.id + "')\">" +
       "<div class='grow' style='min-width:0'><div class='roster-name'>" + esc(g.name) +
       (isOrg ? " <span class='badge est'>Organizer</span>" : "") + "</div>" +
       (sub ? "<div class='roster-sub'>" + esc(sub) + "</div>" : "") + "</div>" +
       "<span class='hcpill" + (g.hc == null ? " tbd" : "") + "'>" + (g.hc == null ? "TBD" : "HC " + (+g.hc)) + "</span>" +
-      (canEditTrip ? "<button class='btn sm danger' onclick=\"event.stopPropagation();removeGolfer('" + g.id + "')\" aria-label='Remove golfer'>\u00d7</button>" : "") +
+      "<button class='btn sm danger' onclick=\"event.stopPropagation();removeGolfer('" + g.id + "')\" aria-label='Remove golfer'>\u00d7</button>" +
       "</div>";
   }).join("");
-  html += '<div class="card" id="card-crew"><div class="kicker">Step 2</div><h2>The crew</h2>' +
-    '<p class="muted" style="margin:4px 0 0">' + S.golfers.length + " player" + (S.golfers.length === 1 ? "" : "s") +
-    (canEditTrip ? " \u00b7 tap a player to edit name, contact info &amp; handicap" : "") + "</p>" + rows +
-    (canEditTrip ? '<button class="btn block" style="margin-top:10px" onclick="openPlayerEditor(null,upsertRosterPlayer,null,canViewContacts())">+ Add player</button>' : "") +
-    "</div>";
+  return '<div class="fstep active" id="fstep-2"><span class="fstep-dot">2</span>' +
+    "<h3>Build the crew</h3>" +
+    '<div class="fstep-sub">The big one \u2014 name every player. Tap a player to edit name, contact info &amp; handicap.</div>' +
+    '<div class="fstep-body">' + rows +
+    '<button class="btn lime block" style="margin-top:10px" onclick="openPlayerEditor(null,upsertRosterPlayer,null,canViewContacts())">+ Add player</button>' +
+    '<div class="fstep-nav"><button class="btn grow" onclick="tripGoStep(1)">Back</button>' +
+    '<button class="btn lime grow" onclick="tripGoStep(3)">Continue</button></div>' +
+    "</div></div>";
+}
 
-  /* --- step 3: share --- */
+function tripEditorShare(isShared) {
+  let body;
   if (isShared) {
-    html += '<div class="card" id="card-share"><div class="kicker">Step 3</div><h2>Share the trip</h2>' +
-      '<p class="muted small">Anyone with the link votes from their own phone \u2014 no account needed to vote.</p>' +
-      '<button class="btn lime block" onclick="copyShareLink()">Copy share link</button></div>';
-    if (AUTH.user && !az.isOwner && !az.isMember) {
-      html += '<div class="card"><div class="kicker">Membership</div><h2>Join this trip</h2>' +
-        '<p class="muted small">Keep it in your My trips list for quick access. Voting still works without joining.</p>' +
-        '<button class="btn block" onclick="joinTripUI()">Join trip</button></div>';
-    }
-    if (AUTH.user && !az.ownerId && !az.isOwner) {
-      html += '<div class="card"><div class="kicker">Ownership</div><h2>Claim this trip</h2>' +
-        '<p class="muted small">This trip has no owner yet. Claim it to manage the details \u2014 nothing changes for the crew.</p>' +
-        '<button class="btn block" onclick="claimTripUI()">Claim this trip</button></div>';
-    }
-    if (!az.ownerId || az.isOwner) {
-      html += '<div class="card"><div class="kicker">Danger zone</div><h2>Delete trip</h2>' +
-        '<p class="muted small">Removes the shared trip for everyone. This cannot be undone.' +
-        (!az.ownerId ? " You'll claim ownership first." : "") + '</p>' +
-        '<button class="btn danger block" onclick="deleteTrip()">Delete shared trip</button></div>';
-    }
+    body = '<div class="fstep-sub">Anyone with the link votes from their own phone \u2014 no account needed to vote.</div>' +
+      '<div class="fstep-body"><button class="btn lime block" onclick="copyShareLink()">Copy share link</button>' +
+      '<button class="btn block" style="margin-top:8px" onclick="copyGroupUpdate()">Copy group update</button></div>';
   } else {
-    html += '<div class="card" id="card-share"><div class="kicker">Step 3</div><h2>Share the trip</h2>' +
-      '<p class="muted small">Put this trip on a shared backend: the whole crew votes from their own phones with live updates. A quick 3-step setup \u2014 you can start blank or copy this setup.</p>' +
-      '<button class="btn lime block" onclick="openTripWizard()">Create shared trip</button></div>' +
-      '<div class="card"><div class="kicker">Go live</div><h2>Production trip</h2>' +
-      '<p class="muted small">Wipe the demo data and start clean for the real thing: same dates, courses and stays, zeroed votes, a blank roster and fresh costs.</p>' +
-      '<button class="btn block" onclick="startProduction()">Start production trip</button></div>';
+    body = '<div class="fstep-sub">Put this trip on a shared backend: the whole crew votes from their phones with live updates.</div>' +
+      '<div class="fstep-body"><button class="btn lime block" onclick="openTripWizard()">Create shared trip</button>' +
+      '<div class="fstep-sub" style="margin-top:12px">Starting fresh? Wipe the demo data and start clean \u2014 dates, courses and stays carry over, votes go to zero.</div>' +
+      '<button class="btn block" style="margin-top:8px" onclick="startProduction()">Start production trip</button></div>';
   }
-
-  /* --- group update --- */
-  html += '<div class="card"><div class="kicker">Share</div><h2>Group chat update</h2>' +
-    '<p class="muted small">Copies a plain-text trip update \u2014 leaders, per-person cost, who still needs to vote, who owes whom \u2014 ready to paste into the group chat.</p>' +
-    '<button class="btn lime block" onclick="copyGroupUpdate()">Copy group update</button></div>';
-
-  if (!isShared) {
-    html += '<div class="card"><div class="kicker">Demo</div><h2>Demo data</h2>' +
-      '<p class="muted small">This app ships pre-loaded with a realistic trip in progress \u2014 names, votes, scores and paid flags are fictional demo data. The three in-range course figures come from real research; the stretch-option figures are rough estimates.</p>' +
-      '<button class="btn danger block" onclick="resetDemo()">Reset demo data</button></div>';
-  }
-
-  $("#panel-trip").innerHTML = html;
-  if (AUTH.user) loadMyTrips();
-  $("#t-name").addEventListener("change", e => { S.trip.name = e.target.value; save(); renderHero(); });
-  $("#t-area").addEventListener("change", e => { S.trip.area = e.target.value; save(); renderHero(); });
-  $("#t-org").addEventListener("change",  e => { S.trip.organizer = e.target.value; save(); renderHero(); });
-  const iam = $("#iam");
-  if (iam) iam.addEventListener("change", e => setIdentityUI(e.target.value));
+  return '<div class="fstep active" id="fstep-3"><span class="fstep-dot">3</span>' +
+    "<h3>Share the trip</h3>" + body +
+    '<div class="fstep-nav"><button class="btn grow" onclick="tripGoStep(2)">Back</button></div></div>';
 }
 /* ================= Dates tab ================= */
 function votedDates() { return S.dates.reduce((t, d) => t + d.votes.length, 0); }
