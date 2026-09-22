@@ -1814,7 +1814,8 @@ let csSuggestSeq = 0, csSuggestTimer = null, csSuggestActive = -1;
 
 function wireCourseSuggest() {
   const input = $("#course-search-q"), box = $("#course-search-suggest");
-  if (!input || !box || typeof SHARED === "undefined" || !SHARED || !SHARED.client) return;
+  if (!input || !box || typeof SHARED === "undefined" || !SHARED || !SHARED.client ||
+      typeof SharedStore === "undefined") return;
   input.addEventListener("input", () => {
     clearTimeout(csSuggestTimer); csSuggestActive = -1;
     const q = input.value.trim();
@@ -1847,9 +1848,9 @@ function wireCourseSuggest() {
 async function fetchCourseSuggest(q) {
   const seq = ++csSuggestSeq;
   try {
-    const res = await SHARED.client.functions.invoke("course-search", { body: SHARED.buildAutocompleteRequest(q) });
+    const res = await SHARED.client.functions.invoke("course-search", { body: SharedStore.buildAutocompleteRequest(q) });
     if (seq !== csSuggestSeq || res.error) return; /* stale or failed — stay silent */
-    renderCourseSuggest(SHARED.mapAutocompleteSuggestions(res.data && res.data.suggestions));
+    renderCourseSuggest(SharedStore.mapAutocompleteSuggestions(res.data && res.data.suggestions));
   } catch (_e) { /* typeahead is best-effort; the Search button still works */ }
 }
 
