@@ -1133,6 +1133,22 @@ const SharedStore = (() => {
     return body;
   }
 
+  /* Decide the search request for the course-search box.
+     A typed query is sent as an unbiased natural-language search (the edge
+     function only applies the destination circle bias when lat/lng are
+     present), so city/state/region/course-name queries search anywhere.
+     A blank query searches "golf course" biased to the destination.
+     geo: { lat, lng } | null — may be null when geocoding failed. */
+  function courseSearchRequestFor(query, geo) {
+    var q = String(query == null ? "" : query).trim();
+    if (q) return buildCourseSearchRequest({ query: q });
+    var g = geo && typeof geo === "object" ? geo : null;
+    if (g && typeof g.lat === "number" && typeof g.lng === "number") {
+      return buildCourseSearchRequest({ query: "", lat: g.lat, lng: g.lng });
+    }
+    return buildCourseSearchRequest({ query: "" });
+  }
+
   /* Map edge-function place results to client course-option objects (the same
      shape the vote UI expects). dest may be { label, lat, lng } or a plain
      label string (distance unknown in that case). */
@@ -1363,6 +1379,7 @@ const SharedStore = (() => {
     subscribeTrip: subscribeTrip,
     haversineMiles: haversineMiles,
     buildCourseSearchRequest: buildCourseSearchRequest,
+    courseSearchRequestFor: courseSearchRequestFor,
     mapPlacesToCourseOptions: mapPlacesToCourseOptions,
     TRIP_TABLES: TRIP_TABLES,
     VOTE_TABLES: VOTE_TABLES
@@ -1778,15 +1795,15 @@ function renderCourses() {
 
 /* ================= Course search (shared backend only) ================= */
 let courseSearchResults = []; /* display objects from mapPlacesToCourseOptions */
-let courseSearchGeo = null;   /* { area, label, lat, lng } — resolved dest coords */
+let courseSearchGeo = null;   /* { area, label, lat?, lng? } — dest coords for distance display (best effort) */
 let courseSearchQuery = "";
 
 function renderCourseSearchCard() {
   let card = '<div class="card"><div class="kicker">Discover</div><h2>Find courses</h2>';
   if (typeof SHARED !== "undefined" && SHARED && SHARED.client) {
-    card += '<p class="muted small" style="margin:4px 0 10px">Search real courses near the trip destination, then add the good ones for the crew to vote on.</p>' +
+    card += '<p class="muted small" style="margin:4px 0 10px">Search real courses anywhere — try a city, state, region, or course name, then add the good ones for the crew to vote on. Leave it blank to search near the trip destination.</p>' +
       '<div style="display:flex;gap:8px;align-items:stretch">' +
-        '<input type="text" id="course-search-q" placeholder="Try \'links course\' or a town name" value="' + esc(courseSearchQuery) + '" style="flex:1;min-width:0">' +
+        '<input type="text" id="course-search-q" placeholder="City, state, region, or course name" value="' + esc(courseSearchQuery) + '" style="flex:1;min-width:0">' +
         '<button class="btn sm" id="course-search-btn" style="flex:none">Search</button>' +
       '</div></div>' + renderCourseSearchResults();
   } else {
@@ -1823,30 +1840,36 @@ async function courseSearch() {
   const orig = btn.textContent;
   btn.textContent = "Searching…";
   try {
-    /* 1. destination coords (cached per trip area) */
+    /* 1. destination coords for the distance display (best effort — the
+       search itself doesn't depend on it anymore) */
     const area = (S.trip.area || "").trim() || "St. Louis, MO";
     let geo = courseSearchGeo;
     if (!geo || geo.area !== area) {
+      geo = { area: area, label: area };
       const key = "caddie-geocode:" + area.toLowerCase();
       let cached = null;
       try { cached = localStorage.getItem(key); } catch (e) {}
       if (cached) {
-        geo = JSON.parse(cached);
+        try { geo = JSON.parse(cached); } catch (e) {}
       } else {
-        const g = await SHARED.client.functions.invoke("course-search", {
-          body: SharedStore.buildCourseSearchRequest({ mode: "geocode", query: area })
-        });
-        if (g.error) throw g.error;
-        const gp = g.data && g.data.places && g.data.places[0];
-        if (!gp || typeof gp.lat !== "number" || typeof gp.lng !== "number") throw new Error("geocode failed");
-        geo = { area: area, label: area, lat: gp.lat, lng: gp.lng };
-        try { localStorage.setItem(key, JSON.stringify(geo)); } catch (e) {}
+        try {
+          const g = await SHARED.client.functions.invoke("course-search", {
+            body: SharedStore.buildCourseSearchRequest({ mode: "geocode", query: area })
+          });
+          const gp = !g.error && g.data && g.data.places && g.data.places[0];
+          if (gp && typeof gp.lat === "number" && typeof gp.lng === "number") {
+            geo = { area: area, label: area, lat: gp.lat, lng: gp.lng };
+            try { localStorage.setItem(key, JSON.stringify(geo)); } catch (e) {}
+          }
+        } catch (e) { /* distance display only — search continues */ }
       }
       courseSearchGeo = geo;
     }
-    /* 2. search biased to the destination */
+    /* 2. search: a typed query goes out as an unbiased natural-language
+       search (city / state / region / course name — anywhere); a blank
+       query searches near the trip destination. */
     const r = await SHARED.client.functions.invoke("course-search", {
-      body: SharedStore.buildCourseSearchRequest({ query: q, lat: geo.lat, lng: geo.lng })
+      body: SharedStore.courseSearchRequestFor(q, geo)
     });
     if (r.error) throw r.error;
     const places = (r.data && r.data.places) || [];
