@@ -1120,12 +1120,16 @@ const SharedStore = (() => {
   }
 
   /* Build the POST body for the course-search edge function.
-     opts: { mode?: "search"|"geocode", query, lat?, lng? } */
+     opts: { mode?: "search"|"geocode", query, lat?, lng?, category?: "stay" }
+     category "stay" searches lodging (hotels, resorts…) instead of golf
+     courses; omitted means golf (backward compatible). */
   function buildCourseSearchRequest(opts) {
     opts = opts || {};
     var q = String(opts.query == null ? "" : opts.query).trim();
+    var stay = opts.category === "stay";
     var body = { mode: opts.mode === "geocode" ? "geocode" : "search",
-                 query: q || "golf course" };
+                 query: q || (stay ? "lodging" : "golf course") };
+    if (stay) body.category = "stay";
     if (typeof opts.lat === "number" && typeof opts.lng === "number") {
       body.lat = opts.lat;
       body.lng = opts.lng;
@@ -1161,6 +1165,19 @@ const SharedStore = (() => {
       return buildCourseSearchRequest({ query: "", lat: g.lat, lng: g.lng });
     }
     return buildCourseSearchRequest({ query: "" });
+  }
+
+  /* Decide the search request for the stay-search box (Stays tab).
+     Same contract as courseSearchRequestFor, but for lodging: a typed query
+     searches anywhere, unbiased; a blank query searches near the destination. */
+  function staySearchRequestFor(query, geo) {
+    var q = String(query == null ? "" : query).trim();
+    if (q) return buildCourseSearchRequest({ query: q, category: "stay" });
+    var g = geo && typeof geo === "object" ? geo : null;
+    if (g && typeof g.lat === "number" && typeof g.lng === "number") {
+      return buildCourseSearchRequest({ query: "", lat: g.lat, lng: g.lng, category: "stay" });
+    }
+    return buildCourseSearchRequest({ query: "", category: "stay" });
   }
 
   /* Map edge-function place results to client course-option objects (the same
@@ -1202,6 +1219,45 @@ const SharedStore = (() => {
         votes: []
       };
     });
+  }
+
+  /* Map edge-function place results to client stay-option objects for the
+     Stays tab search UI. dest may be { label, lat, lng } or a plain label
+     string (distance unknown in that case). The mapsUrl lets the crew open
+     the place on Google Maps; display-only fields (rating, mapsUrl) are never
+     persisted — addSearchStay copies only the vote-UI fields. */
+  function mapPlacesToStayOptions(places, dest) {
+    var label = "", dLat = null, dLng = null;
+    if (dest && typeof dest === "object") {
+      label = String(dest.label || "");
+      if (typeof dest.lat === "number" && typeof dest.lng === "number") {
+        dLat = dest.lat; dLng = dest.lng;
+      }
+    } else {
+      label = String(dest || "");
+    }
+    _searchSeq += 1;
+    var stamp = Date.now().toString(36) + "-" + _searchSeq;
+    return (places || []).map(function (p, i) {
+      var miles = (typeof p.lat === "number" && typeof p.lng === "number" &&
+                   dLat !== null && dLng !== null)
+        ? haversineMiles(dLat, dLng, p.lat, p.lng) : null;
+      var pid = typeof p.placeId === "string" ? p.placeId : "";
+      return {
+        id: "staysearch-" + stamp + "-" + i,
+        name: p.name || "",
+        loc: p.address || "",
+        drive: miles !== null
+          ? "~" + Math.round(miles) + " mi from " + label + " (straight-line est.)"
+          : "",
+        rating: typeof p.rating === "number" ? p.rating : null,
+        ratings: typeof p.ratings === "number" ? p.ratings : null,
+        mapsUrl: pid
+          ? "https://www.google.com/maps/search/?api=1&query_place_id=" + pid
+          : "",
+        votes: []
+      };
+    }).filter(function (s) { return !!s.name; });
   }
 
   /* ---------------- auth (Supabase Auth) ----------------
@@ -1394,9 +1450,11 @@ const SharedStore = (() => {
     haversineMiles: haversineMiles,
     buildCourseSearchRequest: buildCourseSearchRequest,
     courseSearchRequestFor: courseSearchRequestFor,
+    staySearchRequestFor: staySearchRequestFor,
     buildAutocompleteRequest: buildAutocompleteRequest,
     mapAutocompleteSuggestions: mapAutocompleteSuggestions,
     mapPlacesToCourseOptions: mapPlacesToCourseOptions,
+    mapPlacesToStayOptions: mapPlacesToStayOptions,
     TRIP_TABLES: TRIP_TABLES,
     VOTE_TABLES: VOTE_TABLES
   };
@@ -1805,95 +1863,100 @@ function renderCourses() {
   $("#panel-courses").innerHTML = html;
   $("#course-vote-as").addEventListener("change", e => setIdentityUI(e.target.value));
   const csBtn = $("#course-search-btn"), csInput = $("#course-search-q");
-  if (csBtn) csBtn.addEventListener("click", () => { hideCourseSuggest(); courseSearch(); });
-  wireCourseSuggest(); /* typeahead dropdown + Enter/Escape/arrow keys */
+  if (csBtn) csBtn.addEventListener("click", () => { courseSuggester.hide(); courseSearch(); });
+  courseSuggester.wire(); /* typeahead dropdown + Enter/Escape/arrow keys */
 }
 
-/* ================= Course search typeahead (Google-style suggestions) ================= */
-let csSuggestSeq = 0, csSuggestTimer = null, csSuggestActive = -1;
+/* ================= Search typeahead (Google-style suggestions) ================= */
+/* Generic factory — shared by the course search (Courses tab) and the stay
+   search (Stays tab). onPick(text) runs when a suggestion is chosen; it is
+   called with null when the user hits Enter with no suggestion highlighted
+   (meaning: just run the search). */
+function makeSuggester(inputId, boxId, onPick) {
+  let seq = 0, timer = null, active = -1;
+  const inputEl = () => $("#" + inputId), boxEl = () => $("#" + boxId);
 
-function wireCourseSuggest() {
-  const input = $("#course-search-q"), box = $("#course-search-suggest");
-  if (!input || !box || typeof SHARED === "undefined" || !SHARED || !SHARED.client ||
-      typeof SharedStore === "undefined") return;
-  input.addEventListener("input", () => {
-    clearTimeout(csSuggestTimer); csSuggestActive = -1;
-    const q = input.value.trim();
-    if (q.length < 2) { hideCourseSuggest(); return; }
-    csSuggestTimer = setTimeout(() => fetchCourseSuggest(q), 300);
-  });
-  input.addEventListener("keydown", e => {
-    const items = box.querySelectorAll("[data-suggest]");
-    const open = box.style.display !== "none" && items.length > 0;
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (open && csSuggestActive >= 0 && items[csSuggestActive]) {
-        pickCourseSuggest(items[csSuggestActive].getAttribute("data-suggest"));
-      } else { hideCourseSuggest(); courseSearch(); }
-    } else if (!open) {
-      return;
-    } else if (e.key === "Escape") {
-      hideCourseSuggest();
-    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      csSuggestActive = e.key === "ArrowDown"
-        ? (csSuggestActive + 1) % items.length
-        : (csSuggestActive - 1 + items.length) % items.length;
-      paintCourseSuggest(items);
-    }
-  });
-  input.addEventListener("blur", () => setTimeout(hideCourseSuggest, 150));
+  function hide() {
+    const b = boxEl();
+    if (b) { b.style.display = "none"; b.innerHTML = ""; }
+    active = -1;
+  }
+  function paint(items) {
+    Array.prototype.forEach.call(items, (el, i) => { el.style.background = i === active ? "#eef4ff" : ""; });
+  }
+  function paintClear(hovered) {
+    const b = boxEl(); if (!b) return;
+    active = -1;
+    Array.prototype.forEach.call(b.querySelectorAll("[data-suggest]"), el => {
+      el.style.background = el === hovered ? "#eef4ff" : "";
+    });
+  }
+  function pick(text) { hide(); onPick(text); }
+  async function fetchQ(q) {
+    const s = ++seq;
+    try {
+      const res = await SHARED.client.functions.invoke("course-search", { body: SharedStore.buildAutocompleteRequest(q) });
+      if (s !== seq || res.error) return; /* stale or failed — stay silent */
+      render(SharedStore.mapAutocompleteSuggestions(res.data && res.data.suggestions));
+    } catch (_e) { /* typeahead is best-effort; the Search button still works */ }
+  }
+  function render(items) {
+    const b = boxEl();
+    if (!b) return;
+    if (!items.length) { hide(); return; }
+    active = -1;
+    b.innerHTML = items.map(s =>
+      '<div data-suggest="' + esc(s.text) + '" style="padding:10px 12px;cursor:pointer;font-size:14px;border-top:1px solid #f1f5f9">' +
+      esc(s.text) + "</div>").join("");
+    b.style.display = "block";
+    Array.prototype.forEach.call(b.querySelectorAll("[data-suggest]"), el => {
+      el.addEventListener("mouseenter", () => paintClear(el));
+      el.addEventListener("mousedown", e => { e.preventDefault(); pick(el.getAttribute("data-suggest")); });
+    });
+  }
+  function wire() {
+    const inp = inputEl(), b = boxEl();
+    if (!inp || !b || typeof SHARED === "undefined" || !SHARED || !SHARED.client ||
+        typeof SharedStore === "undefined") return;
+    inp.addEventListener("input", () => {
+      clearTimeout(timer); active = -1;
+      const q = inp.value.trim();
+      if (q.length < 2) { hide(); return; }
+      timer = setTimeout(() => fetchQ(q), 300);
+    });
+    inp.addEventListener("keydown", e => {
+      const items = b.querySelectorAll("[data-suggest]");
+      const open = b.style.display !== "none" && items.length > 0;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (open && active >= 0 && items[active]) {
+          pick(items[active].getAttribute("data-suggest"));
+        } else { hide(); onPick(null); }
+      } else if (!open) {
+        return;
+      } else if (e.key === "Escape") {
+        hide();
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        active = e.key === "ArrowDown"
+          ? (active + 1) % items.length
+          : (active - 1 + items.length) % items.length;
+        paint(items);
+      }
+    });
+    inp.addEventListener("blur", () => setTimeout(hide, 150));
+  }
+  return { wire: wire, hide: hide };
 }
 
-async function fetchCourseSuggest(q) {
-  const seq = ++csSuggestSeq;
-  try {
-    const res = await SHARED.client.functions.invoke("course-search", { body: SharedStore.buildAutocompleteRequest(q) });
-    if (seq !== csSuggestSeq || res.error) return; /* stale or failed — stay silent */
-    renderCourseSuggest(SharedStore.mapAutocompleteSuggestions(res.data && res.data.suggestions));
-  } catch (_e) { /* typeahead is best-effort; the Search button still works */ }
-}
-
-function renderCourseSuggest(items) {
-  const box = $("#course-search-suggest");
-  if (!box) return;
-  if (!items.length) { hideCourseSuggest(); return; }
-  csSuggestActive = -1;
-  box.innerHTML = items.map(s =>
-    '<div data-suggest="' + esc(s.text) + '" style="padding:10px 12px;cursor:pointer;font-size:14px;border-top:1px solid #f1f5f9">' +
-    esc(s.text) + "</div>").join("");
-  box.style.display = "block";
-  Array.prototype.forEach.call(box.querySelectorAll("[data-suggest]"), el => {
-    el.addEventListener("mouseenter", () => paintCourseSuggestClear(el));
-    el.addEventListener("mousedown", e => { e.preventDefault(); pickCourseSuggest(el.getAttribute("data-suggest")); });
-  });
-}
-
-function paintCourseSuggest(items) {
-  Array.prototype.forEach.call(items, (el, i) => { el.style.background = i === csSuggestActive ? "#eef4ff" : ""; });
-}
-
-function paintCourseSuggestClear(hovered) {
-  const box = $("#course-search-suggest");
-  if (!box) return;
-  csSuggestActive = -1;
-  Array.prototype.forEach.call(box.querySelectorAll("[data-suggest]"), el => {
-    el.style.background = el === hovered ? "#eef4ff" : "";
-  });
-}
-
-function pickCourseSuggest(text) {
-  const input = $("#course-search-q");
-  if (input) input.value = text;
-  hideCourseSuggest();
+const courseSuggester = makeSuggester("course-search-q", "course-search-suggest", text => {
+  if (text !== null) { const i = $("#course-search-q"); if (i) i.value = text; }
   courseSearch();
-}
-
-function hideCourseSuggest() {
-  const box = $("#course-search-suggest");
-  if (box) { box.style.display = "none"; box.innerHTML = ""; }
-  csSuggestActive = -1;
-}
+});
+const staySuggester = makeSuggester("stay-search-q", "stay-search-suggest", text => {
+  if (text !== null) { const i = $("#stay-search-q"); if (i) i.value = text; }
+  staySearch();
+});
 
 /* ================= Course search (shared backend only) ================= */
 let courseSearchResults = []; /* display objects from mapPlacesToCourseOptions */
@@ -2008,6 +2071,121 @@ function addSearchCourse(id) {
   toast("Added " + c.name + " — crew can vote now.");
 }
 
+/* ================= Stay search (shared backend only) ================= */
+let staySearchResults = []; /* display objects from mapPlacesToStayOptions */
+let staySearchGeo = null;   /* { area, label, lat?, lng? } — dest coords for distance display (best effort) */
+let staySearchQuery = "";
+
+function renderStaySearchCard() {
+  let card = '<div class="card"><div class="kicker">Discover</div><h2>Find stays</h2>';
+  if (typeof SHARED !== "undefined" && SHARED && SHARED.client) {
+    card += '<p class="muted small" style="margin:4px 0 10px">Search real hotels, resorts, and lodges anywhere — try a city, state, or region, then add the good ones for the crew to vote on. Leave it blank to search near the trip destination. For Airbnb/VRBO gems, paste the link below as usual.</p>' +
+      '<div style="display:flex;gap:8px;align-items:stretch">' +
+        '<div style="flex:1;min-width:0;position:relative">' +
+          '<input type="text" id="stay-search-q" placeholder="City, state, or region" autocomplete="off" value="' + esc(staySearchQuery) + '" style="width:100%">' +
+          '<div id="stay-search-suggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:60;background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-top:4px;box-shadow:0 10px 28px rgba(2,6,23,.14);overflow:hidden"></div>' +
+        '</div>' +
+        '<button class="btn sm" id="stay-search-btn" style="flex:none">Search</button>' +
+      '</div></div>' + renderStaySearchResults();
+  } else {
+    card += '<p class="muted small" style="margin:4px 0 0">Stay search needs the shared backend — it\u2019s available on the trip link.</p></div>';
+  }
+  return card;
+}
+
+function renderStaySearchResults() {
+  if (!staySearchResults.length) return "";
+  const countLine = '<p class="muted small" style="margin:12px 0 2px">' + staySearchResults.length +
+    (staySearchResults.length === 1 ? " stay" : " stays") + " found" +
+    (staySearchQuery ? " for \u201c" + esc(staySearchQuery) + "\u201d" : " near the trip destination") + "</p>";
+  return countLine + staySearchResults.map(function (s) {
+    const added = S.stays.some(x =>
+      x.name.toLowerCase() === s.name.toLowerCase() &&
+      (x.loc || "").toLowerCase() === (s.loc || "").toLowerCase());
+    const rating = s.rating != null
+      ? '<div class="muted small">\u2605 ' + s.rating.toFixed(1) +
+        (s.ratings ? " (" + s.ratings + " reviews)" : "") + '</div>' : "";
+    const maps = s.mapsUrl
+      ? '<div class="muted small"><a href="' + s.mapsUrl + '" target="_blank" rel="noopener">View on Google Maps</a></div>' : "";
+    return '<div class="card opt" style="margin-top:8px">' +
+      '<h3 style="margin:0 0 2px">' + esc(s.name) + '</h3>' +
+      '<div class="muted small">' + esc(s.loc) + '</div>' + rating +
+      (s.drive ? '<div class="muted small">' + esc(s.drive) + '</div>' : "") + maps +
+      '<div style="margin-top:10px"><button class="btn sm ghost"' +
+        (added ? " disabled" : ' onclick="addSearchStay(\'' + s.id + '\')"') + '>' +
+        (added ? "Added \u2713" : "Add to trip") + '</button></div></div>';
+  }).join("");
+}
+
+async function staySearch() {
+  if (typeof SHARED === "undefined" || !SHARED || !SHARED.client) return;
+  const btn = $("#stay-search-btn"), input = $("#stay-search-q");
+  const q = input ? input.value.trim() : "";
+  staySearchQuery = q;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = "Searching\u2026";
+  try {
+    /* 1. destination coords for the distance display (best effort — the
+       search itself doesn't depend on it anymore) */
+    const area = (S.trip.area || "").trim() || "St. Louis, MO";
+    let geo = staySearchGeo;
+    if (!geo || geo.area !== area) {
+      geo = { area: area, label: area };
+      const key = "caddie-geocode:" + area.toLowerCase();
+      let cached = null;
+      try { cached = localStorage.getItem(key); } catch (e) {}
+      if (cached) {
+        try { geo = JSON.parse(cached); } catch (e) {}
+      } else {
+        try {
+          const g = await SHARED.client.functions.invoke("course-search", {
+            body: SharedStore.buildCourseSearchRequest({ mode: "geocode", query: area })
+          });
+          const gp = !g.error && g.data && g.data.places && g.data.places[0];
+          if (gp && typeof gp.lat === "number" && typeof gp.lng === "number") {
+            geo = { area: area, label: area, lat: gp.lat, lng: gp.lng };
+            try { localStorage.setItem(key, JSON.stringify(geo)); } catch (e) {}
+          }
+        } catch (e) { /* distance display only — search continues */ }
+      }
+      staySearchGeo = geo;
+    }
+    /* 2. search: a typed query goes out as an unbiased natural-language
+       search (city / state / region / place name — anywhere); a blank
+       query searches near the trip destination. */
+    const r = await SHARED.client.functions.invoke("course-search", {
+      body: SharedStore.staySearchRequestFor(q, geo)
+    });
+    if (r.error) throw r.error;
+    const places = (r.data && r.data.places) || [];
+    staySearchResults = SharedStore.mapPlacesToStayOptions(places, geo);
+    if (!staySearchResults.length) toast("No stays found — try a different search.");
+    renderStays();
+    const qi = $("#stay-search-q");
+    if (qi) qi.focus();
+  } catch (e) {
+    toast("Stay search isn't available right now.");
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+function addSearchStay(id) {
+  const s = staySearchResults.find(x => x.id === id);
+  if (!s) return;
+  const dupe = S.stays.some(x =>
+    x.name.toLowerCase() === s.name.toLowerCase() &&
+    (x.loc || "").toLowerCase() === (s.loc || "").toLowerCase());
+  if (dupe) { toast("Already on the stay list."); return; }
+  /* persistence-clean copy: display-only fields (rating, mapsUrl) stay in the results list */
+  S.stays.push({ id: "stay" + Date.now(), name: s.name, loc: s.loc,
+    sleeps: 0, price: 0, priceText: "TBD",
+    vibe: "Found via search — paste the booking link in the notes.", sample: false, votes: [] });
+  save(); renderHero(); renderStays();
+  toast("Added " + s.name + " — crew can vote now.");
+}
+
 /* ================= Stays tab ================= */
 function voteStay(stayId) {
   if (needIdentity()) return;
@@ -2055,6 +2233,7 @@ function renderStays() {
     '<label class="f">' + iamLabel() + '</label><select id="stay-vote-as">' + iamChoose() +
     S.golfers.map(g => "<option value='" + g.id + "'" + (g.id === me ? " selected" : "") + ">" + esc(g.name) + "</option>").join("") +
     "</select></div>";
+  html += renderStaySearchCard();
   if (SHARED && !stays.length) {
     html += '<div class="card"><div class="kicker">Lodging</div><h3>No stays yet</h3>' +
       '<p class="muted small">Nothing proposed yet — add real Airbnb/VRBO listings below as you find them.</p>' +
@@ -2094,6 +2273,9 @@ function renderStays() {
     '<div style="margin-top:12px"><button class="btn lime block" onclick="addStay()">Add stay</button></div></div>';
   $("#panel-stays").innerHTML = html;
   $("#stay-vote-as").addEventListener("change", e => setIdentityUI(e.target.value));
+  const ssBtn = $("#stay-search-btn");
+  if (ssBtn) ssBtn.addEventListener("click", () => { staySuggester.hide(); staySearch(); });
+  staySuggester.wire(); /* typeahead dropdown + Enter/Escape/arrow keys */
 }
 
 /* ================= Costs tab ================= */
