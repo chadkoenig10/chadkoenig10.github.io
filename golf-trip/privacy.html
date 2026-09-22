@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Caddie</title>
+<meta name="description" content="Caddie privacy policy: what the golf trip planner collects, what it never does, and your rights.">
+<style>
+  :root{
+    --green:#16a34a; --green-d:#15803d; --ink:#10231a; --muted:#6b7a6e;
+    --line:#dce7df; --paper:#ffffff; --bg:#f4f8f5;
+    --display:"SF Pro Display",-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+    --body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.6;}
+  .wrap{max-width:680px;margin:0 auto;padding:40px 20px 60px;}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:22px;
+    padding:32px 28px;box-shadow:0 12px 28px rgba(16,35,26,.08);}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .flag{width:34px;height:34px;border-radius:10px;background:linear-gradient(180deg,#22a355,#15803d);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;}
+  .brand b{font-family:var(--display);font-size:20px;}
+  h1{font-family:var(--display);font-size:28px;margin:6px 0 4px;}
+  .updated{color:var(--muted);font-size:13px;margin-bottom:20px;}
+  h2{font-family:var(--display);font-size:18px;margin:26px 0 8px;color:var(--green-d);}
+  p,li{font-size:15px;}
+  ul{padding-left:20px;margin:8px 0;}
+  li{margin-bottom:6px;}
+  a{color:var(--green-d);font-weight:600;}
+  .back{display:inline-block;margin-top:26px;text-decoration:none;background:linear-gradient(180deg,#22a355,#15803d);
+    color:#fff!important;padding:11px 22px;border-radius:14px;font-family:var(--display);font-weight:700;}
+  .note{background:#f4f8f5;border:1px solid var(--line);border-radius:14px;padding:12px 16px;font-size:14px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="brand"><span class="flag">⚑</span><b>Caddie</b></div>
+    <h1>Privacy Policy</h1>
+    <div class="updated">Last updated: September 22, 2026</div>
+
+    <p>Caddie is a golf trip planner: one shared link lets your crew vote on dates, courses and stays, split costs, and track scores. This policy describes what the app collects and what it never does — in plain language.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><b>Account information (only if you log in).</b> Your email address, via Supabase Auth — either Google sign-in or an email/password you create. Logging in is optional: voting through a shared trip link never requires an account.</li>
+      <li><b>Trip content you and your crew enter.</b> Trip names, destinations, golfer names and handicaps, date/course/stay options, votes, cost items, who's paid, and scores. Anyone with a trip's share link can view and edit this content — that's how the app is designed, so don't put sensitive personal information in a trip.</li>
+      <li><b>Course-search queries.</b> When you search for courses near a destination, the destination text is sent to Google Places through our backend to return real course listings.</li>
+      <li><b>On-device data.</b> Your login session, which golfer you vote as on each trip ("I am…"), and a pending login redirect are stored in your browser's local storage so the app remembers you.</li>
+    </ul>
+
+    <h2>What we never do</h2>
+    <ul>
+      <li>We do <b>not</b> sell your personal data.</li>
+      <li>We show <b>no ads</b> and do no cross-site or cross-app tracking.</li>
+      <li>We don't collect your location — course searches use the destination you type, not GPS.</li>
+    </ul>
+
+    <h2>Where data is stored</h2>
+    <p>Account and trip data is stored with <b>Supabase</b> (Postgres database) in its <b>US region</b>. Course searches go through a Supabase-hosted function to the Google Places API.</p>
+
+    <h2>Your rights</h2>
+    <ul>
+      <li><b>Trip owners</b> can delete a trip (and all its votes, costs, and scores) from the app's Danger zone — this is immediate and irreversible.</li>
+      <li><b>Anyone</b> can ask us to delete their account or trip data by emailing <a href="mailto:chadkoenig10@gmail.com">chadkoenig10@gmail.com</a>. We'll confirm once it's done.</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy? Email <a href="mailto:chadkoenig10@gmail.com">chadkoenig10@gmail.com</a>.</p>
+
+    <div class="note">If this policy changes in a meaningful way, we'll update the date above.</div>
+
+    <a class="back" href="./">← Back to Caddie</a>
+  </div>
+</div>
+</body>
+</html>

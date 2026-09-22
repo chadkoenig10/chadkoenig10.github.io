@@ -257,6 +257,50 @@ table.score input.hc{width:48px;}
 #fab:active{transform:scale(.9);}
 @keyframes floaty{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
 #sheet-backdrop{position:fixed;inset:0;z-index:70;background:rgba(16,35,26,.45);
+/* ---- auth (login chip + modal) ---- */
+#auth-chip{position:fixed;top:12px;right:12px;z-index:80;}
+#auth-chip .chipbtn{display:flex;align-items:center;gap:8px;background:var(--paper);
+  border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 5px;
+  box-shadow:var(--sh);cursor:pointer;font-family:var(--display);font-weight:700;
+  font-size:13px;color:var(--ink);max-width:210px;}
+#auth-chip .avatar{width:30px;height:30px;border-radius:50%;flex:none;
+  background:linear-gradient(180deg,var(--fairway),var(--fairway-d));color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:15px;}
+#auth-chip .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#auth-chip .chipmenu{position:absolute;right:0;top:48px;background:var(--paper);
+  border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh);
+  min-width:180px;padding:6px;display:none;}
+#auth-chip .chipmenu.open{display:block;}
+#auth-chip .chipmenu button{display:block;width:100%;text-align:left;background:none;
+  border:none;padding:11px 12px;font-size:14px;font-weight:600;border-radius:10px;
+  cursor:pointer;color:var(--ink);font-family:var(--body);}
+#auth-chip .chipmenu button:active{background:var(--cream);}
+.auth-modal{position:fixed;inset:0;z-index:90;display:none;align-items:center;
+  justify-content:center;background:rgba(16,35,26,.45);padding:20px;}
+.auth-modal.open{display:flex;}
+.auth-card{background:var(--paper);border-radius:22px;box-shadow:var(--sh);
+  max-width:380px;width:100%;padding:26px 24px;position:relative;
+  max-height:92vh;overflow:auto;}
+.auth-x{position:absolute;top:10px;right:10px;border:none;background:var(--cream);
+  width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;color:var(--muted);}
+.auth-card input[type=email],.auth-card input[type=password]{
+  width:100%;padding:12px 14px;border:2px solid var(--line);border-radius:14px;
+  font-size:16px;background:#fff;color:var(--ink);min-height:48px;font-family:var(--body);
+  margin:2px 0 10px;}
+.auth-card input[type=email]:focus,.auth-card input[type=password]:focus{
+  outline:none;border-color:var(--fairway);box-shadow:0 0 0 3px var(--lime-glow);}
+.btn.auth-google{background:#fff;color:var(--ink);border:1.5px solid var(--line);box-shadow:none;}
+.auth-or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:16px 0;}
+.auth-or:before,.auth-or:after{content:"";flex:1;height:1px;background:var(--line);}
+.auth-err{display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;
+  border-radius:12px;padding:10px 12px;font-size:13px;margin:10px 0;}
+.auth-switch{display:block;width:100%;background:none;border:none;color:var(--fairway-d);
+  font-weight:700;font-size:14px;margin-top:14px;cursor:pointer;font-family:var(--display);}
+.mytrip-row{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--line);
+  border-radius:14px;margin-top:8px;text-decoration:none;color:var(--ink);background:#fff;}
+.mytrip-row:active{border-color:var(--fairway);}
+.mytrip-row .grow{flex:1;min-width:0;}
+.mytrip-row b{font-family:var(--display);}
   backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .3s;}
 #sheet-backdrop.open{opacity:1;pointer-events:auto;}
 #sheet{position:fixed;left:50%;bottom:0;z-index:80;width:100%;max-width:560px;max-height:80vh;
@@ -301,6 +345,7 @@ table.score input.hc{width:48px;}
 .note{background:#fff;border:1.5px dashed var(--brass-d);border-radius:14px;
   padding:11px 13px;font-size:13px;color:#5c4d22;margin:10px 0;}
 .footer{color:var(--muted);font-size:12px;text-align:center;margin:20px 0 6px;}
+.footer a{color:var(--fairway-d);font-weight:600;text-decoration:none;}
 </style>
 </head>
 <body>
@@ -314,7 +359,7 @@ table.score input.hc{width:48px;}
     <section class="panel" id="panel-costs"></section>
     <section class="panel" id="panel-scores"></section>
   </main>
-  <div class="footer">All data stays on this device &middot; no accounts, no servers</div>
+  <div class="footer">Caddie &middot; <a href="privacy.html">Privacy</a></div>
 </div>
 <nav class="tabbar" id="tabbar">
   <button data-tab="trip" class="active" aria-label="Trip">
@@ -334,6 +379,7 @@ table.score input.hc{width:48px;}
   <svg viewBox="0 0 24 24"><path d="M6 21V4"/><path d="M6 4h11l-3 4 3 4H6"/></svg>
 </button>
 <div id="sheet-backdrop"></div>
+<div id="auth-chip"></div>
 <div id="toast" role="status"></div>
 <div id="sheet" role="dialog" aria-label="Strokesaver assistant">
   <div class="sheet-handle"></div>
@@ -351,9 +397,38 @@ table.score input.hc{width:48px;}
     </button>
   </div>
 </div>
+<div class="auth-modal" id="auth-modal">
+  <div class="auth-card" role="dialog" aria-label="Log in to Caddie">
+    <button class="auth-x" id="auth-x" aria-label="Close">✕</button>
+    <div class="kicker">Caddie account</div>
+    <h2 id="auth-title">Log in</h2>
+    <p class="muted small" id="auth-sub">Log in to create trips and keep them in My trips. Voting through a shared link never needs an account.</p>
+    <button class="btn block auth-google" id="auth-google">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+      Continue with Google
+    </button>
+    <div class="auth-or"><span>or</span></div>
+    <label class="f" for="auth-email">Email</label>
+    <input type="email" id="auth-email" autocomplete="email" placeholder="you@example.com">
+    <label class="f" for="auth-pass">Password</label>
+    <input type="password" id="auth-pass" autocomplete="current-password" placeholder="••••••••">
+    <div class="auth-err" id="auth-err"></div>
+    <button class="btn lime block" id="auth-submit">Log in</button>
+    <button class="auth-switch" id="auth-switch">New here? Create an account</button>
+    <p class="muted small" id="auth-confirm-note" style="display:none;margin-top:12px">Account created — check your email to confirm it, then log in.</p>
+    <p class="muted small" style="text-align:center;margin:14px 0 0"><a href="privacy.html" style="color:var(--fairway-d);font-weight:600">Privacy policy</a></p>
+  </div>
+</div>
 <script>
 /* ================= helpers ================= */
 const $ = s => document.querySelector(s);
+/* Native iOS wrapper: load the Capacitor OAuth deep-link handler (no-op on web). */
+if (typeof window !== "undefined" && window.Capacitor && !window.CaddieNativeAuth) {
+  const caddieNativeScript = document.createElement("script");
+  caddieNativeScript.src = "mobile-auth.js";
+  caddieNativeScript.defer = true;
+  document.head.appendChild(caddieNativeScript);
+}
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money = n => "$" + (Math.round((+n || 0) * 100) / 100).toLocaleString("en-US");
 const cap1 = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -728,7 +803,8 @@ const SharedStore = (() => {
 
     return {
       v: 2, mode: "shared", activeTab: "trip",
-      trip: { name: trip.name, area: trip.destination, organizer: trip.organizer, slug: trip.slug || "" },
+      trip: { name: trip.name, area: trip.destination, organizer: trip.organizer,
+              slug: trip.slug || "", ownerId: trip.owner_id || null },
       golfers: golfers.map(function (g) { return { id: g.id, name: g.name, hc: g.handicap }; }),
       votingAs: "",
       dates: dates.map(function (d) {
@@ -983,15 +1059,25 @@ const SharedStore = (() => {
     return remap;
   }
 
-  /* ---------------- create a shared trip from a local state ---------------- */
-  async function createSharedTrip(client, src) {
+  /* ---------------- create a shared trip from a local state ----------------
+     opts.ownerId (optional): when set, the trip is created owned by that
+     auth user and they are recorded as an owner member. */
+  async function createSharedTrip(client, src, opts) {
+    opts = opts || {};
     var fail = function (r, what) { if (r && r.error) throw new Error(what + ": " + (r.error.message || r.error)); return r; };
     var slug = await uniqueSlug(client, slugify(src.trip.name));
-    var t = fail(await client.from("trips").insert({
+    var tripRow = {
       name: src.trip.name, destination: src.trip.area, organizer: src.trip.organizer,
       skins_on: false, skins_pot: 5, slug: slug
-    }).select(), "create trip");
+    };
+    if (opts.ownerId) tripRow.owner_id = opts.ownerId;
+    var t = fail(await client.from("trips").insert(tripRow).select(), "create trip");
     var tripId = t.data[0].id;
+
+    if (opts.ownerId) {
+      fail(await client.from("trip_members")
+        .insert({ trip_id: tripId, user_id: opts.ownerId, role: "owner" }), "add owner");
+    }
 
     fail(await client.from("golfers").insert(src.golfers.map(function (x) {
       return { trip_id: tripId, name: x.name, handicap: +x.hc || 0 };
@@ -1088,6 +1174,140 @@ const SharedStore = (() => {
     });
   }
 
+  /* ---------------- auth (Supabase Auth) ----------------
+     All helpers are DOM-free: they take the supabase client explicitly and
+     never touch window/document. The page script owns the modal UI, the
+     pre-redirect stash of ?trip=, and the native deep-link flow. */
+
+  /* Current signed-in user, or null. */
+  async function getSessionUser(client) {
+    try {
+      var r = await client.auth.getUser();
+      if (r.error || !r.data) return null;
+      return r.data.user || null;
+    } catch (e) { return null; }
+  }
+
+  async function getSession(client) {
+    try {
+      var r = await client.auth.getSession();
+      return (r.data && r.data.session) || null;
+    } catch (e) { return null; }
+  }
+
+  /* Google OAuth. redirectTo should be an explicit absolute URL (the app's
+     root); the pending ?trip= param is stashed separately and restored
+     after the callback. extraOptions is passed through (native deep-link
+     uses { skipBrowserRedirect: true }). */
+  async function signInWithGoogle(client, redirectTo, extraOptions) {
+    var options = { redirectTo: redirectTo };
+    if (extraOptions) {
+      for (var k in extraOptions) {
+        if (Object.prototype.hasOwnProperty.call(extraOptions, k)) options[k] = extraOptions[k];
+      }
+    }
+    return client.auth.signInWithOAuth({ provider: "google", options: options });
+  }
+
+  async function signInWithEmail(client, email, password) {
+    return client.auth.signInWithPassword({ email: email, password: password });
+  }
+
+  async function signUpWithEmail(client, email, password, emailRedirectTo) {
+    var args = { email: email, password: password };
+    if (emailRedirectTo) args.options = { emailRedirectTo: emailRedirectTo };
+    return client.auth.signUp(args);
+  }
+
+  async function signOutUser(client) {
+    return client.auth.signOut();
+  }
+
+  /* Subscribe to auth changes; returns the supabase subscription handle. */
+  function onAuthStateChange(client, cb) {
+    var r = client.auth.onAuthStateChange(function (event, session) { cb(event, session); });
+    return (r && r.data) ? r.data.subscription : null;
+  }
+
+  /* Stash/restore the pre-login location (?trip=...) across the OAuth
+     redirect. storage is localStorage in the browser, a mock in tests. */
+  var AUTH_RETURN_KEY = "caddie-auth-return";
+  function stashAuthReturn(storage, value) {
+    try { if (value) storage.setItem(AUTH_RETURN_KEY, value); } catch (e) { /* ignore */ }
+  }
+  function takeAuthReturn(storage) {
+    try {
+      var v = storage.getItem(AUTH_RETURN_KEY) || "";
+      storage.removeItem(AUTH_RETURN_KEY);
+      return v;
+    } catch (e) { return ""; }
+  }
+
+  /* Trips the user owns or has joined: [{id,name,destination,slug,role}]. */
+  async function getMyTrips(client) {
+    var user = await getSessionUser(client);
+    if (!user) return [];
+    var owned = await client.from("trips")
+      .select("id,name,destination,slug,owner_id").eq("owner_id", user.id);
+    if (owned.error) throw owned.error;
+    var mem = await client.from("trip_members")
+      .select("trip_id,role,trips(id,name,destination,slug)").eq("user_id", user.id);
+    if (mem.error) throw mem.error;
+    var out = {};
+    var add = function (t, role) {
+      if (t && t.id && !out[t.id]) {
+        out[t.id] = { id: t.id, name: t.name, destination: t.destination,
+                      slug: t.slug || "", role: role };
+      }
+    };
+    (owned.data || []).forEach(function (t) { add(t, "owner"); });
+    (mem.data || []).forEach(function (m) { add(m.trips, m.role || "member"); });
+    return Object.keys(out).map(function (k) { return out[k]; });
+  }
+
+  /* Membership/ownership for one trip. */
+  async function getTripAuth(client, tripId) {
+    var user = await getSessionUser(client);
+    var t = await client.from("trips").select("id,owner_id").eq("id", tripId).single();
+    if (t.error || !t.data) throw new Error("Trip not found");
+    var ownerId = t.data.owner_id || null;
+    var member = false;
+    if (user) {
+      var m = await client.from("trip_members").select("trip_id")
+        .eq("trip_id", tripId).eq("user_id", user.id);
+      member = !!(m.data && m.data.length);
+    }
+    return { userId: user ? user.id : null, ownerId: ownerId,
+             isMember: member, isOwner: !!(user && ownerId && user.id === ownerId) };
+  }
+
+  /* Join a trip as a member (logged-in link visitors). */
+  async function joinTrip(client, tripId) {
+    var user = await getSessionUser(client);
+    if (!user) throw new Error("Login required");
+    var r = await client.from("trip_members")
+      .insert({ trip_id: tripId, user_id: user.id, role: "member" });
+    if (r.error) throw r.error;
+    return true;
+  }
+
+  async function leaveTrip(client, tripId) {
+    var user = await getSessionUser(client);
+    if (!user) throw new Error("Login required");
+    var r = await client.from("trip_members").delete()
+      .eq("trip_id", tripId).eq("user_id", user.id);
+    if (r.error) throw r.error;
+    return true;
+  }
+
+  /* Claim an unclaimed (ownerless) trip. Enforced server-side by the
+     claim_trip() SECURITY DEFINER function — never a direct UPDATE. */
+  async function claimTrip(client, tripId) {
+    var r = await client.rpc("claim_trip", { p_trip_id: tripId });
+    if (r.error) throw r.error;
+    return true;
+  }
+
   /* ---------------- realtime ---------------- */
   var TRIP_TABLES = ["trips", "golfers", "date_options", "course_options",
                      "stay_options", "cost_items", "scores", "dues_paid", "skin_counts"];
@@ -1126,6 +1346,20 @@ const SharedStore = (() => {
     fetchTripState: fetchTripState,
     pushDiff: pushDiff,
     createSharedTrip: createSharedTrip,
+    getSessionUser: getSessionUser,
+    getSession: getSession,
+    signInWithGoogle: signInWithGoogle,
+    signInWithEmail: signInWithEmail,
+    signUpWithEmail: signUpWithEmail,
+    signOutUser: signOutUser,
+    onAuthStateChange: onAuthStateChange,
+    stashAuthReturn: stashAuthReturn,
+    takeAuthReturn: takeAuthReturn,
+    getMyTrips: getMyTrips,
+    getTripAuth: getTripAuth,
+    joinTrip: joinTrip,
+    leaveTrip: leaveTrip,
+    claimTrip: claimTrip,
     subscribeTrip: subscribeTrip,
     haversineMiles: haversineMiles,
     buildCourseSearchRequest: buildCourseSearchRequest,
@@ -1362,14 +1596,23 @@ function renderTrip() {
   let html = "";
   if (bootNotice) html += '<div class="notice">' + esc(bootNotice) + "</div>";
 
+  const az = (isShared && SHARED.authz) || {};
+  const canEditTrip = !isShared || !az.ownerId || az.isOwner;
+  const disAttr = canEditTrip ? "" : " disabled";
   html += '<div class="card"><div class="kicker">Setup</div><h2>Trip details</h2>' +
     '<label class="f">Trip name</label>' +
-    '<input type="text" id="t-name" value="' + esc(S.trip.name) + '">' +
+    '<input type="text" id="t-name" value="' + esc(S.trip.name) + '"' + disAttr + '>' +
     '<label class="f">Destination area</label>' +
-    '<input type="text" id="t-area" value="' + esc(S.trip.area) + '">' +
+    '<input type="text" id="t-area" value="' + esc(S.trip.area) + '"' + disAttr + '>' +
     '<label class="f">Organizer</label>' +
-    '<input type="text" id="t-org" value="' + esc(S.trip.organizer) + '">' +
+    '<input type="text" id="t-org" value="' + esc(S.trip.organizer) + '"' + disAttr + '>' +
+    (canEditTrip ? "" : '<p class="muted small" style="margin:8px 0 0">Only the trip owner can edit these details.</p>') +
     "</div>";
+
+  if (AUTH.user) {
+    html += '<div class="card"><div class="kicker">Account</div><h2>My trips</h2>' +
+      '<div id="mytrips-list"><p class="muted small">Loading&hellip;</p></div></div>';
+  }
 
   if (isShared) {
     html += '<div class="card"><div class="kicker">This device</div><h2>I am&hellip;</h2>' +
@@ -1386,14 +1629,27 @@ function renderTrip() {
 
   if (isShared) {
     html += '<div class="card"><div class="kicker">Invite</div><h2>Share the trip</h2>' +
-      '<p class="muted small">Anyone with the link votes from their own phone — no logins, no accounts.</p>' +
-      '<button class="btn lime block" onclick="copyShareLink()">Copy share link</button></div>' +
-      '<div class="card"><div class="kicker">Danger zone</div><h2>Delete trip</h2>' +
-      '<p class="muted small">Removes the shared trip for everyone. This cannot be undone.</p>' +
-      '<button class="btn danger block" onclick="deleteTrip()">Delete shared trip</button></div>';
+      '<p class="muted small">Anyone with the link votes from their own phone — no account needed to vote.</p>' +
+      '<button class="btn lime block" onclick="copyShareLink()">Copy share link</button></div>';
+    if (AUTH.user && !az.isOwner && !az.isMember) {
+      html += '<div class="card"><div class="kicker">Membership</div><h2>Join this trip</h2>' +
+        '<p class="muted small">Keep it in your My trips list for quick access. Voting still works without joining.</p>' +
+        '<button class="btn block" onclick="joinTripUI()">Join trip</button></div>';
+    }
+    if (AUTH.user && !az.ownerId && !az.isOwner) {
+      html += '<div class="card"><div class="kicker">Ownership</div><h2>Claim this trip</h2>' +
+        '<p class="muted small">This trip has no owner yet. Claim it to manage the details — nothing changes for the crew.</p>' +
+        '<button class="btn block" onclick="claimTripUI()">Claim this trip</button></div>';
+    }
+    if (!az.ownerId || az.isOwner) {
+      html += '<div class="card"><div class="kicker">Danger zone</div><h2>Delete trip</h2>' +
+        '<p class="muted small">Removes the shared trip for everyone. This cannot be undone.' +
+        (!az.ownerId ? " You'll claim ownership first." : "") + '</p>' +
+        '<button class="btn danger block" onclick="deleteTrip()">Delete shared trip</button></div>';
+    }
   } else {
     html += '<div class="card"><div class="kicker">Go shared</div><h2>Multi-user trip</h2>' +
-      '<p class="muted small">Put this trip on a shared backend: all 10 golfers vote from their own phones with live updates. Needs a free Supabase project (one-time setup, keys go in the CONFIG block at the top of this file).</p>' +
+      '<p class="muted small">Put this trip on a shared backend: all 10 golfers vote from their own phones with live updates. Needs a free Supabase project (one-time setup, keys go in the CONFIG block at the top of this file) and a Caddie account — you\'ll be asked to log in.</p>' +
       '<button class="btn lime block" onclick="createSharedTripUI()">Create shared trip link</button></div>' +
       '<div class="card"><div class="kicker">Go live</div><h2>Production trip</h2>' +
       '<p class="muted small">Wipe the demo data and start clean for the real thing: same dates, courses and stays, zeroed votes, a blank roster and fresh costs. Type the real 10 names above.</p>' +
@@ -1411,6 +1667,7 @@ function renderTrip() {
   }
 
   $("#panel-trip").innerHTML = html;
+  if (AUTH.user) loadMyTrips();
   $("#t-name").addEventListener("change", e => { S.trip.name = e.target.value; save(); renderHero(); });
   $("#t-area").addEventListener("change", e => { S.trip.area = e.target.value; save(); renderHero(); });
   $("#t-org").addEventListener("change",  e => { S.trip.organizer = e.target.value; save(); renderHero(); });
@@ -2398,7 +2655,9 @@ async function doPush() {
     pushPending = true;
     clearTimeout(pushTimer);
     pushTimer = setTimeout(doPush, 4000);
-    toast("Sync hiccup — will retry automatically.");
+    const emsg = e && e.message ? e.message : "";
+    if (emsg.indexOf("update trip") === 0) toast("Only the trip owner can change trip details.");
+    else toast("Sync hiccup — will retry automatically.");
   }
   pushBusy = false;
 }
@@ -2458,26 +2717,29 @@ function subscribeShared() {
   );
 }
 async function boot() {
+  /* OAuth callback: restore the stashed ?trip= before resolving anything */
+  if (supaReady()) {
+    const ac = supaClient();
+    if (ac && await maybeRestoreAuthReturn(ac)) return;
+  }
+  initAuth();
+  const client = supaClient();
   const tripParam = SharedStore.parseTripParam(location.search);
   let tripId = tripParam && tripParam.id ? tripParam.id : null;
   if (tripParam && !tripId) {
     /* slug link (e.g. ?trip=fall-2026): resolve it to the trip id first */
-    if (supaReady()) {
-      const client = SharedStore.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      if (client) {
-        try { tripId = await SharedStore.resolveTripSlug(client, tripParam.slug); }
-        catch (e) { tripId = null; }
-      }
+    if (client) {
+      try { tripId = await SharedStore.resolveTripSlug(client, tripParam.slug); }
+      catch (e) { tripId = null; }
     }
     if (!tripId) bootNotice = "That shared-trip link didn't open (it may have been deleted). Showing your local data instead.";
   }
   if (tripId) {
     if (supaReady()) {
-      const client = SharedStore.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       if (client) {
         SHARED = { client: client, tripId: tripId };
         document.querySelector(".footer").innerHTML =
-          "Shared trip &middot; anyone with the link can view and vote &middot; no logins";
+          "Shared trip &middot; anyone with the link can view and vote &middot; logins optional &middot; <a href=\"privacy.html\">Privacy</a>";
         document.querySelectorAll(".panel").forEach(p =>
           p.classList.toggle("active", p.id === "panel-trip"));
         document.getElementById("panel-trip").innerHTML =
@@ -2490,6 +2752,7 @@ async function boot() {
           lastServer = SharedStore.snapshotShared(S);
           subscribeShared();
           renderAll();
+          refreshTripAuthz();
           if (!S.votingAs) toast("Welcome! Pick who you are in the Trip tab to vote.");
           return;
         } catch (e) {
@@ -2513,12 +2776,17 @@ async function createSharedTripUI() {
     alert("Backend not configured yet:\n\n1. Create a free project at supabase.com\n2. Run supabase-schema.sql in its SQL editor\n3. Paste the Project URL + anon key into the CONFIG block at the top of this file\n4. Re-upload this file\n\nThen come back and tap this again.");
     return;
   }
-  const client = SharedStore.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const client = supaClient();
   if (!client) { alert("Couldn't load the Supabase library — check your connection and reload."); return; }
+  if (!AUTH.user) {
+    toast("Log in first — the trip will be created under your account.");
+    openLoginModal("create-trip");
+    return;
+  }
   if (!confirm("Create a shared trip from the current setup?\n\nDates, courses, golfers and the cost template carry over. Votes start at zero. You'll get a link to share with the crew.")) return;
   toast("Creating shared trip…");
   try {
-    const res = await SharedStore.createSharedTrip(client, S);
+    const res = await SharedStore.createSharedTrip(client, S, { ownerId: AUTH.user.id });
     location.href = location.pathname + "?trip=" + encodeURIComponent(res.slug);
   } catch (e) {
     alert("Couldn't create the trip: " + (e && e.message ? e.message : e));
@@ -2534,6 +2802,27 @@ function copyShareLink() {
 }
 async function deleteTrip() {
   if (!SHARED) return;
+  const az = SHARED.authz || {};
+  if (az.ownerId && !az.isOwner) {
+    alert("Only the trip owner can delete this trip.");
+    return;
+  }
+  if (!az.ownerId) {
+    /* Unclaimed trip: deletions are owner-gated now — claim it first. */
+    if (!AUTH.user) {
+      toast("Log in first — then claim the trip to delete it.");
+      openLoginModal("delete-trip");
+      return;
+    }
+    if (!confirm("This trip has no owner yet. Claim it as yours, then delete it for everyone?")) return;
+    try {
+      await SharedStore.claimTrip(SHARED.client, SHARED.tripId);
+      await refreshTripAuthz();
+    } catch (e) {
+      alert("Couldn't claim the trip: " + (e && e.message ? e.message : e));
+      return;
+    }
+  }
   if (!confirm("Delete this shared trip for EVERYONE? This cannot be undone.")) return;
   if (!confirm("Really delete \"" + S.trip.name + "\"? All votes, costs and scores go with it.")) return;
   try {
@@ -2580,6 +2869,235 @@ function loadSampleStays() {
   save(); renderStays();
 }
 
+/* ================= auth (Supabase Auth) =================
+   Google OAuth + email/password. Logins gate trip *creation* and trip-row
+   edits/deletes; voting through a shared link never needs an account. */
+let AUTH = { user: null, ready: false };
+let pendingPostLogin = null;   /* action to resume after login, e.g. "create-trip" */
+let authModalMode = "signin";  /* or "signup" */
+
+/* One supabase client for the whole page (auth state is shared). */
+function supaClient() {
+  if (SHARED && SHARED.client) return SHARED.client;
+  if (!window.__caddieClient && supaReady()) {
+    window.__caddieClient = SharedStore.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return window.__caddieClient || null;
+}
+
+/* After an OAuth callback, return the browser to the stashed ?trip= page.
+   Only consumes the stash when a session is actually present. */
+async function maybeRestoreAuthReturn(client) {
+  try {
+    const sess = await SharedStore.getSession(client);
+    if (!sess) return false;
+    const ret = SharedStore.takeAuthReturn(localStorage);
+    if (ret) { location.replace(location.pathname + ret); return true; }
+  } catch (e) { /* fall through */ }
+  return false;
+}
+
+function initAuth() {
+  const client = supaClient();
+  renderAuthChip();
+  if (!client) return;
+  SharedStore.onAuthStateChange(client, (event, session) => {
+    AUTH.user = session && session.user ? session.user : null;
+    AUTH.ready = true;
+    renderAuthChip();
+    if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && AUTH.user) {
+      maybeRestoreAuthReturn(client).then(restored => {
+        if (restored) return;
+        if (pendingPostLogin) {
+          const p = pendingPostLogin; pendingPostLogin = null;
+          closeLoginModal();
+          if (p === "create-trip") createSharedTripUI();
+          else if (p === "delete-trip") deleteTrip();
+        }
+        if (SHARED) refreshTripAuthz();
+      });
+    }
+    if (event === "SIGNED_OUT") {
+      AUTH.user = null;
+      renderAuthChip();
+      if (SHARED) refreshTripAuthz();
+    }
+  });
+  SharedStore.getSession(client).then(sess => {
+    AUTH.user = sess && sess.user ? sess.user : null;
+    AUTH.ready = true;
+    renderAuthChip();
+    if (SHARED) refreshTripAuthz();
+  });
+}
+
+/* ---- login modal ---- */
+function openLoginModal(after) {
+  pendingPostLogin = after || null;
+  authModalMode = "signin";
+  paintAuthModal();
+  $("auth-email").value = ""; $("auth-pass").value = "";
+  $("auth-modal").classList.add("open");
+  setTimeout(() => { try { $("auth-email").focus({ preventScroll: true }); } catch (e) {} }, 300);
+}
+function closeLoginModal() { $("auth-modal").classList.remove("open"); }
+function paintAuthModal() {
+  const signup = authModalMode === "signup";
+  $("auth-title").textContent = signup ? "Create account" : "Log in";
+  $("auth-submit").textContent = signup ? "Create account" : "Log in";
+  $("auth-switch").textContent = signup ? "Have an account? Log in" : "New here? Create an account";
+  $("auth-pass").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+  $("auth-err").textContent = ""; $("auth-err").style.display = "none";
+  $("auth-confirm-note").style.display = "none";
+  const btn = $("auth-submit"); btn.disabled = false;
+  const gb = $("auth-google"); if (gb) gb.disabled = false;
+}
+function authError(msg) {
+  const e = $("auth-err");
+  e.textContent = msg; e.style.display = "block";
+}
+async function googleSignIn() {
+  const client = supaClient();
+  if (!client) { authError("Backend not configured yet."); return; }
+  SharedStore.stashAuthReturn(localStorage, location.search || "");
+  const gb = $("auth-google"); gb.disabled = true;
+  try {
+    if (window.CaddieNativeAuth && window.CaddieNativeAuth.signInWithGoogle) {
+      /* native app: in-app browser + deep-link callback, no page redirect */
+      await window.CaddieNativeAuth.signInWithGoogle(client);
+    } else {
+      const { error } = await SharedStore.signInWithGoogle(client, location.origin + location.pathname);
+      if (error) throw error;
+      /* browser navigates to Google; the ?trip= stash is restored on return */
+    }
+  } catch (e) {
+    gb.disabled = false;
+    authError(e && e.message ? e.message : "Google sign-in failed — try again.");
+  }
+}
+async function submitEmailAuth() {
+  const client = supaClient();
+  if (!client) { authError("Backend not configured yet."); return; }
+  const email = (($("auth-email").value) || "").trim();
+  const pass = $("auth-pass").value || "";
+  if (!email || !pass) { authError("Enter your email and password."); return; }
+  if (authModalMode === "signup" && pass.length < 6) { authError("Pick a password at least 6 characters long."); return; }
+  const btn = $("auth-submit"); btn.disabled = true; btn.textContent = "Working…";
+  try {
+    if (authModalMode === "signup") {
+      const { error } = await SharedStore.signUpWithEmail(
+        client, email, pass, location.origin + location.pathname);
+      if (error) throw error;
+      btn.disabled = false; btn.textContent = "Create account";
+      $("auth-confirm-note").style.display = "block";
+    } else {
+      const { error } = await SharedStore.signInWithEmail(client, email, pass);
+      if (error) throw error;
+      /* onAuthStateChange fires SIGNED_IN and resumes any pending action */
+    }
+  } catch (e) {
+    const friendly = (e && e.message ? e.message : "") || "That didn't work — check your details and try again.";
+    btn.disabled = false;
+    paintAuthModal();
+    authError(friendly.replace(/^.*?:\s*/, ""));
+  }
+}
+async function logOut() {
+  const client = supaClient();
+  if (client) { try { await SharedStore.signOutUser(client); } catch (e) {} }
+  AUTH.user = null;
+  renderAuthChip();
+  if (SHARED) refreshTripAuthz();
+  toast("Logged out.");
+}
+
+/* ---- header auth chip ---- */
+function renderAuthChip() {
+  const el = $("auth-chip");
+  if (!el) return;
+  if (!supaReady()) { el.innerHTML = ""; return; }
+  if (AUTH.user) {
+    const email = AUTH.user.email || "Account";
+    const initial = (email.charAt(0) || "?").toUpperCase();
+    el.innerHTML =
+      '<button class="chipbtn" id="chip-btn" aria-label="Account menu"><span class="avatar">' + esc(initial) +
+      '</span><span class="who">' + esc(email) + '</span></button>' +
+      '<div class="chipmenu" id="chip-menu">' +
+      '<button id="chip-mytrips">My trips</button>' +
+      '<button id="chip-logout">Log out</button></div>';
+    $("chip-btn").addEventListener("click", e => {
+      e.stopPropagation();
+      $("chip-menu").classList.toggle("open");
+    });
+    $("chip-mytrips").addEventListener("click", () => {
+      $("chip-menu").classList.remove("open");
+      switchTab("trip");
+      setTimeout(() => {
+        const t = $("mytrips-list");
+        if (t) t.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 120);
+    });
+    $("chip-logout").addEventListener("click", () => {
+      $("chip-menu").classList.remove("open");
+      logOut();
+    });
+  } else {
+    el.innerHTML = '<button class="btn sm" id="chip-login">Log in</button>';
+    $("chip-login").addEventListener("click", () => openLoginModal());
+  }
+}
+
+/* ---- trip membership / ownership ---- */
+async function refreshTripAuthz() {
+  if (!SHARED) return;
+  try {
+    SHARED.authz = await SharedStore.getTripAuth(SHARED.client, SHARED.tripId);
+  } catch (e) {
+    SHARED.authz = { userId: null, ownerId: null, isMember: false, isOwner: false };
+  }
+  renderTrip(); renderHero();
+}
+async function joinTripUI() {
+  if (!SHARED) return;
+  try { await SharedStore.joinTrip(SHARED.client, SHARED.tripId); }
+  catch (e) { alert("Couldn't join the trip: " + (e && e.message ? e.message : e)); return; }
+  await refreshTripAuthz();
+  toast("You're in — this trip is now in My trips.");
+}
+async function claimTripUI() {
+  if (!SHARED || !AUTH.user) return;
+  if (!confirm("Claim this trip as its owner?\n\nYou'll be able to edit the trip details and delete the trip. The crew keeps voting through the link — nothing changes for them.")) return;
+  try {
+    await SharedStore.claimTrip(SHARED.client, SHARED.tripId);
+    try {
+      await SHARED.client.from("trip_members")
+        .insert({ trip_id: SHARED.tripId, user_id: AUTH.user.id, role: "owner" });
+    } catch (e2) { /* membership row is a nicety; ownership is what matters */ }
+  } catch (e) { alert("Couldn't claim the trip: " + (e && e.message ? e.message : e)); return; }
+  await refreshTripAuthz();
+  toast("Trip claimed — you're the owner now.");
+}
+async function loadMyTrips() {
+  const box = $("mytrips-list");
+  if (!box) return;
+  const client = supaClient();
+  if (!client) { box.innerHTML = "<p class='muted small'>Backend not configured.</p>"; return; }
+  try {
+    const trips = await SharedStore.getMyTrips(client);
+    if (!trips.length) {
+      box.innerHTML = "<p class='muted small'>No trips yet — create one and it'll live here.</p>";
+      return;
+    }
+    box.innerHTML = trips.map(t =>
+      "<a class='mytrip-row' href='" + location.pathname + "?trip=" + encodeURIComponent(t.slug || t.id) + "'>" +
+      "<div class='grow'><b>" + esc(t.name) + "</b><div class='muted small'>" + esc(t.destination || "") + "</div></div>" +
+      "<span class='badge" + (t.role === "owner" ? " est" : "") + "'>" + esc(t.role) + "</span></a>"
+    ).join("");
+  } catch (e) {
+    box.innerHTML = "<p class='muted small'>Couldn't load your trips — check your connection.</p>";
+  }
+}
+
 /* ================= navigation ================= */
 function switchTab(name) {
   S.activeTab = name; save();
@@ -2597,6 +3115,15 @@ document.querySelectorAll("#tabbar button").forEach(b =>
 $("#fab").addEventListener("click", openSheet);
 $("#sheet-close").addEventListener("click", closeSheet);
 $("#sheet-backdrop").addEventListener("click", closeSheet);
+$("#auth-x").addEventListener("click", closeLoginModal);
+$("#auth-modal").addEventListener("click", e => { if (e.target.id === "auth-modal") closeLoginModal(); });
+$("#auth-google").addEventListener("click", googleSignIn);
+$("#auth-submit").addEventListener("click", submitEmailAuth);
+$("#auth-switch").addEventListener("click", () => {
+  authModalMode = authModalMode === "signup" ? "signin" : "signup";
+  paintAuthModal();
+});
+$("#auth-pass").addEventListener("keydown", e => { if (e.key === "Enter") submitEmailAuth(); });
 $("#chat-send").addEventListener("click", () => handleCaddieSend());
 $("#chat-in").addEventListener("keydown", e => { if (e.key === "Enter") handleCaddieSend(); });
 boot();
