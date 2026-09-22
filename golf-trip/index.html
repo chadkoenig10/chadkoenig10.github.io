@@ -209,6 +209,22 @@ table.score td{padding:5px 3px;border-bottom:1px solid #edf1ee;text-align:center
 table.score td.name{text-align:left;font-weight:700;font-size:14px;}
 table.score input{width:56px;padding:8px 4px;text-align:center;font-size:15px;min-height:42px;border-radius:10px;}
 table.score input.hc{width:48px;}
+/* ---- scorecard camera ---- */
+.scan-bar{height:8px;border-radius:99px;background:var(--cream);overflow:hidden;margin:8px 0;}
+.scan-bar i{display:block;height:100%;width:0;background:var(--fairway);border-radius:99px;transition:width .2s;}
+.scan-preview{width:100%;border-radius:14px;margin:10px 0;border:2px solid var(--line);}
+.scan-row{border:2px solid var(--line);border-radius:14px;padding:12px;margin-top:10px;background:#fff;}
+.scan-row select{width:100%;padding:10px 12px;border:2px solid var(--line);border-radius:12px;
+  font-size:16px;background:#fff;color:var(--ink);margin:4px 0 6px;font-family:var(--body);}
+.scan-holes{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;margin-top:6px;}
+.scan-holes label{display:block;text-align:center;}
+.scan-holes span{display:block;font-size:10px;color:var(--muted);font-weight:700;margin-bottom:2px;}
+.scan-holes input{width:100%;padding:7px 2px;text-align:center;font-size:14px;min-height:40px;
+  border:2px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);}
+.scan-holes input:focus{outline:none;border-color:var(--fairway);}
+.scan-tot{margin-top:8px;font-size:14px;}
+.scan-lowconf{display:inline-block;font-size:11px;font-weight:700;color:#8a5f14;background:#fffbeb;
+  border:1px solid #f0d48a;border-radius:99px;padding:2px 8px;margin-left:6px;}
 .netpill{display:inline-block;background:var(--lime-soft);border:1.5px solid #d9f99d;color:#3f6212;
   font-weight:800;font-size:12px;border-radius:999px;padding:2px 9px;margin-top:3px;font-family:var(--display);}
 .stand{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px dashed var(--line);}
@@ -2855,9 +2871,14 @@ function toggleSkins() {
   save(); renderScores();
 }
 function renderScores() {
+  let html = "";
+  if (scanNotice) {
+    html += '<div class="notice" id="scan-results" style="position:relative;padding-right:44px">' + esc(scanNotice) +
+      '<button class="sheet-x" style="width:30px;height:30px;font-size:15px;top:8px;right:8px" onclick="scanNotice=null;renderScores()">×</button></div>';
+  }
   const on = !!S.scores.skinsOn;
   const potTotal = on ? S.scores.skinsPot * S.golfers.length : 0;
-  let html = '<div class="card"><div class="row"><div class="grow"><div class="kicker">Live board</div><h2 style="margin:0">Trip leaderboard</h2>' +
+  html += '<div class="card"><div class="row"><div class="grow"><div class="kicker">Live board</div><h2 style="margin:0">Trip leaderboard</h2>' +
     '<div class="muted small">Net = gross − handicap · sorted by net total</div></div>' +
     '<label class="switch"><input type="checkbox"' + (on ? " checked" : "") + ' onchange="toggleSkins()"><span class="slider"></span></label></div>' +
     '<div class="muted small" style="margin-top:10px">Skins game: <b>' + (on ? "ON" : "OFF") + "</b>" +
@@ -2887,7 +2908,8 @@ function renderScores() {
   html += "</div>";
 
   /* score entry */
-  html += '<div class="card"><div class="kicker">Scoring</div><h3>Enter scores</h3>' +
+  html += '<div class="card"><div class="kicker">Scoring</div><div class="row"><h3 class="grow" style="margin:0">Enter scores</h3>' +
+    '<button class="btn lime sm" onclick="openScan()">📷 Scan card</button></div>' +
     '<p class="muted small" style="margin:4px 0 6px">Tap a box to type gross scores. Handicaps editable here too.</p>' +
     '<div style="overflow-x:auto"><table class="score"><tr><th style="text-align:left">Player</th><th>HC</th>' +
     ROUNDS.map(r => "<th>" + r.label + "</th>").join("") +
@@ -2905,6 +2927,233 @@ function renderScores() {
   });
   html += "</table></div></div>";
   $("#panel-scores").innerHTML = html;
+}
+
+/* ================= Scorecard camera — snap the card, get the winners =================
+   On-device OCR (Tesseract.js, lazy-loaded from CDN on first use). The photo is
+   read on the phone and never uploaded. Flow: pick round -> snap photo -> OCR ->
+   review/fix grid -> apply totals. Totals feed the existing leaderboard; a
+   results banner names the round winners. */
+let SCAN = null; /* {roundId, rows:[{name,holes[18],conf,playerId}]} */
+let scanNotice = null;
+function guessScanRound() {
+  for (const r of ROUNDS) {
+    if (S.golfers.some(g => ((S.scores.gross[g.id] || {})[r.id] == null))) return r.id;
+  }
+  return ROUNDS[0].id;
+}
+function roundLabel(id) { const r = ROUNDS.find(r => r.id === id); return r ? r.label : id; }
+function openScan() {
+  SCAN = { roundId: guessScanRound(), rows: [] };
+  openModal(
+    '<button class="sheet-x" onclick="closeModal()">×</button>' +
+    '<div class="kicker">Scorecard camera</div><h2 style="margin:4px 0 6px">Snap the scorecard</h2>' +
+    '<p class="muted small" style="margin:0 0 12px">Private — the photo is read on this phone and never uploaded.</p>' +
+    '<div class="tbdline"><span class="muted small">Round:</span> ' +
+    ROUNDS.map(r => '<button class="chip' + (SCAN.roundId === r.id ? ' paid' : '') + '" onclick="scanPickRound(\'' + r.id + '\',this)">' + esc(r.label) + '</button>').join('') + '</div>' +
+    '<input type="file" id="scan-file" accept="image/*" capture="environment" style="display:none" onchange="scanFile(this)">' +
+    '<button class="btn lime block" onclick="document.getElementById(\'scan-file\').click()">📷 Take photo of scorecard</button>' +
+    '<div id="scan-stage" style="margin-top:12px"></div>' +
+    '<p class="muted small" style="margin-top:12px">Tips: lay the card flat, fill the frame, and use good light. You review every number before anything is saved.</p>'
+  );
+}
+function scanPickRound(id, el) {
+  SCAN.roundId = id;
+  const box = el.parentElement;
+  box.querySelectorAll('.chip').forEach(c => c.classList.remove('paid'));
+  el.classList.add('paid');
+}
+function loadTesseract() {
+  return new Promise((res, rej) => {
+    if (window.Tesseract) return res();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js';
+    s.onload = () => res();
+    s.onerror = () => rej(new Error('ocr engine failed to load — check connection'));
+    document.head.appendChild(s);
+  });
+}
+function loadScanImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const viaImg = () => {
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); res(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('could not read image')); };
+      img.src = url;
+    };
+    if ('createImageBitmap' in window) {
+      fetch(url).then(r => r.blob())
+        .then(b => createImageBitmap(b, { imageOrientation: 'from-image' }))
+        .then(b => { URL.revokeObjectURL(url); res(b); })
+        .catch(viaImg);
+    } else viaImg();
+  });
+}
+function preprocessScan(src) {
+  const maxDim = 2000;
+  let w = src.width, h = src.height;
+  const s = Math.min(maxDim / Math.max(w, h), 2.0);
+  w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(src, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    const g = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+    let v = (g - 128) * 1.5 + 140; v = v < 0 ? 0 : (v > 255 ? 255 : v);
+    p[i] = p[i + 1] = p[i + 2] = v;
+  }
+  x.putImageData(d, 0, 0);
+  return c;
+}
+async function scanFile(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  const stage = $('#scan-stage');
+  const retryBtn = '<button class="btn lime block" style="margin-top:10px" onclick="document.getElementById(\'scan-file\').click()">📷 Try again</button>';
+  try {
+    stage.innerHTML = '<p class="muted small">Loading…</p><div class="scan-bar"><i id="scan-prog" style="width:6%"></i></div>';
+    const src = await loadScanImage(f);
+    const canvas = preprocessScan(src);
+    stage.innerHTML = '<img class="scan-preview" alt="Scorecard photo">' +
+      '<p class="muted small">Reading the card…</p><div class="scan-bar"><i id="scan-prog" style="width:10%"></i></div>';
+    stage.querySelector('.scan-preview').src = canvas.toDataURL('image/jpeg', 0.85);
+    await loadTesseract();
+    const worker = await window.Tesseract.createWorker('eng', window.Tesseract.OEM.LSTM, {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          const p = $('#scan-prog');
+          if (p) p.style.width = Math.round(10 + m.progress * 86) + '%';
+        }
+      }
+    });
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    const { data } = await worker.recognize(canvas);
+    await worker.terminate();
+    SCAN.rows = parseScorecard(data);
+    renderScanReview();
+  } catch (err) {
+    stage.innerHTML = '<div class="notice">Couldn\u2019t read that photo (' + esc((err && err.message) || 'error') + '). Try flatter light — or enter scores by hand below.</div>' + retryBtn;
+  }
+}
+/* Header-ish rows to ignore: PAR / HOLE / OUT / IN / TOT … */
+const SCAN_SKIP = /^(par|hole|holes|out|in|total|tot|front|back|hdcp|hcp|handicap|net|gross|adj|score)$/i;
+function matchScanPlayer(name) {
+  const g = resolveGolfer(name, S.golfers);
+  return g ? g.id : '';
+}
+function parseScorecard(data) {
+  const words = (data.words || []).filter(w => w.text && /[A-Za-z0-9]/.test(w.text));
+  if (!words.length) return [];
+  const hs = words.map(w => w.bbox.y1 - w.bbox.y0).sort((a, b) => a - b);
+  const med = hs[Math.floor(hs.length / 2)] || 20;
+  const tol = med * 0.8;
+  const byY = [...words].sort((a, b) => ((a.bbox.y0 + a.bbox.y1) / 2) - ((b.bbox.y0 + b.bbox.y1) / 2));
+  const lines = [];
+  byY.forEach(w => {
+    const y = (w.bbox.y0 + w.bbox.y1) / 2;
+    const last = lines[lines.length - 1];
+    if (last && Math.abs(last.y - y) < tol) { last.words.push(w); last.y = (last.y * last.n + y) / (last.n + 1); last.n++; }
+    else lines.push({ y: y, n: 1, words: [w] });
+  });
+  const rows = [];
+  lines.forEach(L => {
+    const ws = L.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    const nameToks = [], nums = [], confs = [];
+    ws.forEach(w => {
+      const t = w.text.trim().replace(/[.,;:|]+$/, '');
+      confs.push(w.confidence || 0);
+      if (/^\d{1,2}$/.test(t)) {
+        const v = +t;
+        /* hole scores realistically top out ~15; 9-hole subtotals (27+) and
+           18-hole totals are excluded by this cap automatically */
+        if (v >= 1 && v <= 15) nums.push(v);
+      } else if (/[A-Za-z]/.test(t)) nameToks.push(t);
+    });
+    const name = nameToks.join(' ').replace(/\s+/g, ' ').trim();
+    if (name && !SCAN_SKIP.test(nameToks[0] || '') && nums.length >= 6) {
+      const holes = nums.slice(0, 18);
+      while (holes.length < 18) holes.push(null);
+      const conf = confs.length ? Math.round(confs.reduce((a, b) => a + b, 0) / confs.length) : 0;
+      rows.push({ name: name, holes: holes, conf: conf, playerId: matchScanPlayer(name) });
+    }
+  });
+  return rows.slice(0, 12);
+}
+function scanRowTotal(r) {
+  const vs = r.holes.filter(v => v != null);
+  return vs.length ? vs.reduce((a, b) => a + b, 0) : '–';
+}
+function scanHole(i, h, val) {
+  const r = SCAN.rows[i];
+  const v = parseInt(val, 10);
+  r.holes[h] = (val === '' || isNaN(v)) ? null : Math.max(1, Math.min(15, v));
+  const t = $('#scantot' + i);
+  if (t) t.textContent = scanRowTotal(r);
+  const row = $('#scanrow' + i);
+  if (row) {
+    const c = row.querySelector('.scan-tot .muted');
+    if (c) c.textContent = '(' + r.holes.filter(v => v != null).length + ' of 18 holes)';
+  }
+}
+function scanMap(i, gid) { SCAN.rows[i].playerId = gid; }
+function scanDropRow(i) { SCAN.rows.splice(i, 1); renderScanReview(); }
+function renderScanReview() {
+  const stage = $('#scan-stage');
+  if (!SCAN.rows.length) {
+    stage.innerHTML = '<div class="notice">I couldn\u2019t find player rows on that card. Lay it flat, fill the frame, and try again — or enter scores by hand.</div>' +
+      '<button class="btn lime block" style="margin-top:10px" onclick="document.getElementById(\'scan-file\').click()">📷 Try again</button>';
+    return;
+  }
+  let html = '<div class="kicker">Review</div><h3 style="margin:4px 0">Check the read</h3>' +
+    '<p class="muted small" style="margin:0 0 4px">Match each row to a player, fix any misread numbers, then apply. Nothing is saved until you tap Apply.</p>';
+  SCAN.rows.forEach((r, i) => {
+    html += '<div class="scan-row" id="scanrow' + i + '">' +
+      '<div class="row"><div class="grow"><b>' + esc(r.name) + '</b>' +
+      (r.conf < 60 ? '<span class="scan-lowconf">low confidence — double-check</span>' : '') + '</div>' +
+      '<button class="btn sm ghost" onclick="scanDropRow(' + i + ')">Remove</button></div>' +
+      '<label class="muted small">Player</label><select onchange="scanMap(' + i + ',this.value)">' +
+      '<option value="">— pick player —</option>' +
+      S.golfers.map(g => '<option value="' + g.id + '"' + (r.playerId === g.id ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('') +
+      '</select>' +
+      '<div class="scan-holes">' +
+      r.holes.map((v, h) => '<label><span>' + (h + 1) + '</span><input type="number" min="1" max="15" inputmode="numeric" value="' + (v == null ? '' : v) + '" onchange="scanHole(' + i + ',' + h + ',this.value)"></label>').join('') +
+      '</div>' +
+      '<div class="scan-tot">Total: <b id="scantot' + i + '">' + scanRowTotal(r) + '</b> <span class="muted small">(' + r.holes.filter(v => v != null).length + ' of 18 holes)</span></div>' +
+      '</div>';
+  });
+  html += '<button class="btn lime block" style="margin-top:14px" onclick="scanApply()">Apply scores to ' + esc(roundLabel(SCAN.roundId)) + '</button>' +
+    '<button class="btn block" style="margin-top:8px" onclick="document.getElementById(\'scan-file\').click()">📷 Scan another card</button>';
+  stage.innerHTML = html;
+}
+function scanApply() {
+  const rid = SCAN.roundId;
+  let n = 0;
+  SCAN.rows.forEach(r => {
+    if (!r.playerId) return;
+    const vs = r.holes.filter(v => v != null);
+    if (!vs.length) return;
+    const total = vs.reduce((a, b) => a + b, 0);
+    if (!S.scores.gross[r.playerId]) S.scores.gross[r.playerId] = {};
+    S.scores.gross[r.playerId][rid] = Math.max(50, Math.min(150, total));
+    n++;
+  });
+  if (!n) { alert('Match at least one row to a player first.'); return; }
+  closeModal();
+  save(); renderScores(); renderHero();
+  const res = S.golfers
+    .map(g => { const sc = (S.scores.gross[g.id] || {})[rid]; return sc == null ? null : { g: g, gross: sc, net: sc - (+g.hc || 0) }; })
+    .filter(Boolean).sort((a, b) => a.net - b.net);
+  let msg = 'Scorecard applied to ' + roundLabel(rid) + ' (' + n + ' player' + (n > 1 ? 's' : '') + ').';
+  if (res.length) {
+    const w = res[0];
+    msg += ' Leader: ' + w.g.name + ' — net ' + (w.net > 0 ? '+' : '') + w.net + ' (gross ' + w.gross + ').';
+  }
+  scanNotice = msg;
+  renderScores();
+  setTimeout(() => { const el = $('#scan-results'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
 }
 
 /* ================= STROKESAVER — natural-language trip assistant =================
