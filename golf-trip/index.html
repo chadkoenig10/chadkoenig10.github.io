@@ -257,6 +257,7 @@ table.score input.hc{width:48px;}
 #fab:active{transform:scale(.9);}
 @keyframes floaty{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
 #sheet-backdrop{position:fixed;inset:0;z-index:70;background:rgba(16,35,26,.45);
+  backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .3s;}
 /* ---- auth (login chip + modal) ---- */
 #auth-chip{position:fixed;top:12px;right:12px;z-index:80;}
 #auth-chip .chipbtn{display:flex;align-items:center;gap:8px;background:var(--paper);
@@ -366,7 +367,6 @@ table.score input.hc{width:48px;}
 .mytrip-row:active{border-color:var(--fairway);}
 .mytrip-row .grow{flex:1;min-width:0;}
 .mytrip-row b{font-family:var(--display);}
-  backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .3s;}
 #sheet-backdrop.open{opacity:1;pointer-events:auto;}
 #sheet{position:fixed;left:50%;bottom:0;z-index:80;width:100%;max-width:560px;max-height:80vh;
   transform:translate(-50%,105%);transition:transform .34s cubic-bezier(.32,.72,.28,1);
