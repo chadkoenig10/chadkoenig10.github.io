@@ -1133,6 +1133,20 @@ const SharedStore = (() => {
     return body;
   }
 
+  /* Build the POST body for the course-search edge function's autocomplete
+     mode (typeahead suggestions for the search box). */
+  function buildAutocompleteRequest(query) {
+    return { mode: "autocomplete", query: String(query == null ? "" : query).trim() };
+  }
+
+  /* Normalize edge-function autocomplete suggestions for the dropdown UI. */
+  function mapAutocompleteSuggestions(items) {
+    return (items || [])
+      .filter(function (s) { return s && typeof s.text === "string" && s.text.trim(); })
+      .slice(0, 5)
+      .map(function (s) { return { text: s.text.trim(), placeId: s.placeId || "" }; });
+  }
+
   /* Decide the search request for the course-search box.
      A typed query is sent as an unbiased natural-language search (the edge
      function only applies the destination circle bias when lat/lng are
@@ -1380,6 +1394,8 @@ const SharedStore = (() => {
     haversineMiles: haversineMiles,
     buildCourseSearchRequest: buildCourseSearchRequest,
     courseSearchRequestFor: courseSearchRequestFor,
+    buildAutocompleteRequest: buildAutocompleteRequest,
+    mapAutocompleteSuggestions: mapAutocompleteSuggestions,
     mapPlacesToCourseOptions: mapPlacesToCourseOptions,
     TRIP_TABLES: TRIP_TABLES,
     VOTE_TABLES: VOTE_TABLES
@@ -1789,8 +1805,93 @@ function renderCourses() {
   $("#panel-courses").innerHTML = html;
   $("#course-vote-as").addEventListener("change", e => setIdentityUI(e.target.value));
   const csBtn = $("#course-search-btn"), csInput = $("#course-search-q");
-  if (csBtn) csBtn.addEventListener("click", courseSearch);
-  if (csInput) csInput.addEventListener("keydown", e => { if (e.key === "Enter") courseSearch(); });
+  if (csBtn) csBtn.addEventListener("click", () => { hideCourseSuggest(); courseSearch(); });
+  wireCourseSuggest(); /* typeahead dropdown + Enter/Escape/arrow keys */
+}
+
+/* ================= Course search typeahead (Google-style suggestions) ================= */
+let csSuggestSeq = 0, csSuggestTimer = null, csSuggestActive = -1;
+
+function wireCourseSuggest() {
+  const input = $("#course-search-q"), box = $("#course-search-suggest");
+  if (!input || !box || typeof SHARED === "undefined" || !SHARED || !SHARED.client) return;
+  input.addEventListener("input", () => {
+    clearTimeout(csSuggestTimer); csSuggestActive = -1;
+    const q = input.value.trim();
+    if (q.length < 2) { hideCourseSuggest(); return; }
+    csSuggestTimer = setTimeout(() => fetchCourseSuggest(q), 300);
+  });
+  input.addEventListener("keydown", e => {
+    const items = box.querySelectorAll("[data-suggest]");
+    const open = box.style.display !== "none" && items.length > 0;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && csSuggestActive >= 0 && items[csSuggestActive]) {
+        pickCourseSuggest(items[csSuggestActive].getAttribute("data-suggest"));
+      } else { hideCourseSuggest(); courseSearch(); }
+    } else if (!open) {
+      return;
+    } else if (e.key === "Escape") {
+      hideCourseSuggest();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      csSuggestActive = e.key === "ArrowDown"
+        ? (csSuggestActive + 1) % items.length
+        : (csSuggestActive - 1 + items.length) % items.length;
+      paintCourseSuggest(items);
+    }
+  });
+  input.addEventListener("blur", () => setTimeout(hideCourseSuggest, 150));
+}
+
+async function fetchCourseSuggest(q) {
+  const seq = ++csSuggestSeq;
+  try {
+    const res = await SHARED.client.functions.invoke("course-search", { body: SHARED.buildAutocompleteRequest(q) });
+    if (seq !== csSuggestSeq || res.error) return; /* stale or failed — stay silent */
+    renderCourseSuggest(SHARED.mapAutocompleteSuggestions(res.data && res.data.suggestions));
+  } catch (_e) { /* typeahead is best-effort; the Search button still works */ }
+}
+
+function renderCourseSuggest(items) {
+  const box = $("#course-search-suggest");
+  if (!box) return;
+  if (!items.length) { hideCourseSuggest(); return; }
+  csSuggestActive = -1;
+  box.innerHTML = items.map(s =>
+    '<div data-suggest="' + esc(s.text) + '" style="padding:10px 12px;cursor:pointer;font-size:14px;border-top:1px solid #f1f5f9">' +
+    esc(s.text) + "</div>").join("");
+  box.style.display = "block";
+  Array.prototype.forEach.call(box.querySelectorAll("[data-suggest]"), el => {
+    el.addEventListener("mouseenter", () => paintCourseSuggestClear(el));
+    el.addEventListener("mousedown", e => { e.preventDefault(); pickCourseSuggest(el.getAttribute("data-suggest")); });
+  });
+}
+
+function paintCourseSuggest(items) {
+  Array.prototype.forEach.call(items, (el, i) => { el.style.background = i === csSuggestActive ? "#eef4ff" : ""; });
+}
+
+function paintCourseSuggestClear(hovered) {
+  const box = $("#course-search-suggest");
+  if (!box) return;
+  csSuggestActive = -1;
+  Array.prototype.forEach.call(box.querySelectorAll("[data-suggest]"), el => {
+    el.style.background = el === hovered ? "#eef4ff" : "";
+  });
+}
+
+function pickCourseSuggest(text) {
+  const input = $("#course-search-q");
+  if (input) input.value = text;
+  hideCourseSuggest();
+  courseSearch();
+}
+
+function hideCourseSuggest() {
+  const box = $("#course-search-suggest");
+  if (box) { box.style.display = "none"; box.innerHTML = ""; }
+  csSuggestActive = -1;
 }
 
 /* ================= Course search (shared backend only) ================= */
@@ -1803,7 +1904,10 @@ function renderCourseSearchCard() {
   if (typeof SHARED !== "undefined" && SHARED && SHARED.client) {
     card += '<p class="muted small" style="margin:4px 0 10px">Search real courses anywhere — try a city, state, region, or course name, then add the good ones for the crew to vote on. Leave it blank to search near the trip destination.</p>' +
       '<div style="display:flex;gap:8px;align-items:stretch">' +
-        '<input type="text" id="course-search-q" placeholder="City, state, region, or course name" value="' + esc(courseSearchQuery) + '" style="flex:1;min-width:0">' +
+        '<div style="flex:1;min-width:0;position:relative">' +
+          '<input type="text" id="course-search-q" placeholder="City, state, region, or course name" autocomplete="off" value="' + esc(courseSearchQuery) + '" style="width:100%">' +
+          '<div id="course-search-suggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:60;background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-top:4px;box-shadow:0 10px 28px rgba(2,6,23,.14);overflow:hidden"></div>' +
+        '</div>' +
         '<button class="btn sm" id="course-search-btn" style="flex:none">Search</button>' +
       '</div></div>' + renderCourseSearchResults();
   } else {
@@ -1814,7 +1918,10 @@ function renderCourseSearchCard() {
 
 function renderCourseSearchResults() {
   if (!courseSearchResults.length) return "";
-  return courseSearchResults.map(function (c) {
+  const countLine = '<p class="muted small" style="margin:12px 0 2px">' + courseSearchResults.length +
+    (courseSearchResults.length === 1 ? " course" : " courses") + " found" +
+    (courseSearchQuery ? " for \u201c" + esc(courseSearchQuery) + "\u201d" : " near the trip destination") + "</p>";
+  return countLine + courseSearchResults.map(function (c) {
     const added = S.courses.some(x =>
       x.name.toLowerCase() === c.name.toLowerCase() &&
       (x.loc || "").toLowerCase() === (c.loc || "").toLowerCase());
