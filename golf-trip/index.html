@@ -590,7 +590,8 @@ body.gated .auth-modal{background:transparent;}
 </div>
 <script>
 /* ================= helpers ================= */
-const $ = s => document.querySelector(s);
+/* $() takes an element id with or without the leading "#". */
+const $ = s => document.querySelector(s[0] === "#" || s[0] === "." ? s : "#" + s);
 /* Native iOS wrapper: load the Capacitor OAuth deep-link handler (no-op on web). */
 if (typeof window !== "undefined" && window.Capacitor && !window.CaddieNativeAuth) {
   const caddieNativeScript = document.createElement("script");
