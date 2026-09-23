@@ -364,6 +364,19 @@ table.score input.hc{width:48px;}
   font-weight:700;font-size:14px;margin-top:14px;cursor:pointer;font-family:var(--display);}
 .mytrip-row{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid var(--line);
   border-radius:14px;margin-top:8px;text-decoration:none;color:var(--ink);background:#fff;}
+/* ---- home tab ---- */
+.home-hero{display:flex;align-items:center;gap:14px;padding:18px 16px;border:2px solid var(--line);
+  border-radius:18px;background:linear-gradient(135deg,#f7fef9,#eefbf2);margin-bottom:6px;}
+.home-hero .btn{flex-shrink:0;}
+.home-kicker{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--fairway-d);}
+.home-title{font-size:24px;font-weight:800;margin:2px 0 4px;letter-spacing:-.3px;}
+.home-sec{margin:20px 0 4px;}
+.home-sec>h3{margin:0 0 10px;font-size:15px;font-weight:800;letter-spacing:.2px;}
+.trip-card{display:flex;align-items:center;gap:10px;padding:14px;border:2px solid var(--line);
+  border-radius:14px;margin-bottom:10px;background:#fff;text-decoration:none;color:inherit;}
+.trip-card.current{border-color:var(--fairway);background:#f2fbf4;}
+.trip-card:active{transform:scale(.99);}
+.trip-card .badge{flex-shrink:0;}
 /* ---- sheet modal (player editor, trip wizard) ---- */
 .sheet-modal{position:fixed;inset:0;z-index:95;display:none;align-items:center;
   justify-content:center;background:rgba(16,35,26,.45);padding:20px;}
@@ -914,20 +927,13 @@ const SharedStore = (() => {
         gross: Object.keys((s.scores && s.scores.gross) || {}).sort().map(function (gid) {
           return { golfer_id: gid,
                    rounds: Object.keys(s.scores.gross[gid]).sort().map(function (rid) {
-                     return { round_key: rid, gross: s.scores.gross[gid][rid],
-                              holes: (((s.scores.holes || {})[rid] || {})[gid]) || null };
+                     return { round_key: rid, gross: s.scores.gross[gid][rid] };
                    }) };
         }),
         skins: Object.keys((s.scores && s.scores.skins) || {}).sort().map(function (gid) {
           return { golfer_id: gid, count: s.scores.skins[gid] };
         })
-      },
-      games: (s.games || []).map(function (g) {
-        return { game_id: g.id, name: g.name || "", format_id: g.formatId,
-                 rounds: g.rounds || [], teams: g.teams || null, players: g.players || null,
-                 stakes_cents: Math.round((+g.stakes || 0) * 100), net: g.net !== false,
-                 extra: g.extra || {}, status: g.status || "live" };
-      })
+      }
     };
   }
 
@@ -951,13 +957,6 @@ const SharedStore = (() => {
         courses = res[2].data || [], stays = res[3].data || [],
         items = res[4].data || [], paid = res[5].data || [],
         scores = res[6].data || [], skins = res[7].data || [];
-    var fgames = [];
-    if (client.__fgReady) {
-      try {
-        var fgr = await client.from("format_games").select("*").eq("trip_id", tripId);
-        if (fgr && !fgr.error) fgames = fgr.data || [];
-      } catch (e) { /* pre-migration: games stay local-only */ }
-    }
 
     var optIds = dates.map(function (d) { return d.id; })
       .concat(courses.map(function (c) { return c.id; }))
@@ -975,22 +974,15 @@ const SharedStore = (() => {
       return rows.filter(function (r) { return r.option_id === oid; })
                  .map(function (r) { return r.golfer_id; });
     };
-    var gross = {}, holes = {};
+    var gross = {};
     scores.forEach(function (r) {
       if (r.gross == null) return;
       (gross[r.golfer_id] = gross[r.golfer_id] || {})[r.round_key] = r.gross;
-      if (r.holes) (holes[r.round_key] = holes[r.round_key] || {})[r.golfer_id] = r.holes;
     });
     var skinMap = {};
     skins.forEach(function (r) { skinMap[r.golfer_id] = r.count; });
     var paidMap = {};
     paid.forEach(function (r) { paidMap[r.golfer_id] = true; });
-    var games = fgames.map(function (r) {
-      return { id: r.game_id, name: r.name || "", formatId: r.format_id,
-               rounds: r.rounds || [], teams: r.teams || null, players: r.players || null,
-               stakes: Math.round((+r.stakes_cents || 0) / 100), net: r.net !== false,
-               extra: r.extra || {}, status: r.status || "live" };
-    });
 
     return {
       v: 2, mode: "shared", activeTab: "trip",
@@ -1021,8 +1013,7 @@ const SharedStore = (() => {
         paid: paidMap
       },
       scores: { skinsOn: !!trip.skins_on, skinsPot: +(trip.skins_pot || 5),
-                gross: gross, skins: skinMap, holes: holes },
-      games: games
+                gross: gross, skins: skinMap }
     };
   }
 
@@ -1049,16 +1040,7 @@ const SharedStore = (() => {
     if (s.scores) {
       s.scores.gross = rekey(s.scores.gross);
       s.scores.skins = rekey(s.scores.skins);
-      if (s.scores.holes) {
-        var nh = {};
-        Object.keys(s.scores.holes).forEach(function (rid) { nh[rid] = rekey(s.scores.holes[rid]); });
-        s.scores.holes = nh;
-      }
     }
-    (s.games || []).forEach(function (g) {
-      if (g.teams) g.teams = g.teams.map(function (t) { return t.map(fix); });
-      if (g.players) g.players = g.players.map(fix);
-    });
     if (s.votingAs) s.votingAs = fix(s.votingAs);
   }
 
@@ -1068,7 +1050,7 @@ const SharedStore = (() => {
     var now = snapshotShared(cur);
     /* A null oldSnap (first push before any snapshot) means "everything is new". */
     var old = oldSnap || { trip: null, golfers: [], dates: [], courses: [], stays: [],
-                           costs: { items: [], paid: [] }, scores: { gross: [], skins: [] }, games: [] };
+                           costs: { items: [], paid: [] }, scores: { gross: [], skins: [] } };
     var same = function (a, b) { return JSON.stringify(a) === JSON.stringify(b); };
     var fail = function (r, what) { if (r && r.error) throw new Error(what + ": " + (r.error.message || r.error)); return r; };
 
@@ -1211,24 +1193,20 @@ const SharedStore = (() => {
     }
     if (paidAdds.length) fail(await client.from("dues_paid").insert(paidAdds), "mark paid");
 
-    /* 6. scores (gross per round + hole-by-hole when the DB is ready) + skins */
-    var holesOK = client.__holesReady === true;
-    var pack = function (r) { return JSON.stringify(holesOK ? { g: r.gross, h: r.holes || null } : { g: r.gross }); };
+    /* 6. scores (gross per round) + skins */
     var oldGross = {}, newGross = {};
     old.scores.gross.forEach(function (gg) {
-      gg.rounds.forEach(function (r) { oldGross[gg.golfer_id + "|" + r.round_key] = pack(r); });
+      gg.rounds.forEach(function (r) { oldGross[gg.golfer_id + "|" + r.round_key] = r.gross; });
     });
     now.scores.gross.forEach(function (gg) {
       var gid = remap[gg.golfer_id] || gg.golfer_id;
-      gg.rounds.forEach(function (r) { newGross[gid + "|" + r.round_key] = pack(r); });
+      gg.rounds.forEach(function (r) { newGross[gid + "|" + r.round_key] = r.gross; });
     });
     var upserts = [];
     for (var uk in newGross) {
       if (newGross.hasOwnProperty(uk) && oldGross[uk] !== newGross[uk]) {
-        var up = uk.split("|"), parsed = JSON.parse(newGross[uk]);
-        var row = { trip_id: tripId, golfer_id: up[0], round_key: up[1], gross: parsed.g };
-        if (holesOK) row.holes = parsed.h;
-        upserts.push(row);
+        var up = uk.split("|");
+        upserts.push({ trip_id: tripId, golfer_id: up[0], round_key: up[1], gross: newGross[uk] });
       }
     }
     if (upserts.length) {
@@ -1259,30 +1237,6 @@ const SharedStore = (() => {
           .eq("trip_id", tripId).eq("golfer_id", skid2), "clear skins");
       }
     }
-
-    /* 6b. Format Genius games (only once the migration has run) */
-    if (client.__fgReady) {
-    var oldGames = {}, newGames = {};
-    (old.games || []).forEach(function (g) { oldGames[g.game_id] = JSON.stringify(g); });
-    (now.games || []).forEach(function (g) { newGames[g.game_id] = JSON.stringify(g); });
-    var gameUp = [];
-    for (var gk in newGames) {
-      if (newGames.hasOwnProperty(gk) && oldGames[gk] !== newGames[gk]) {
-        var gr = JSON.parse(newGames[gk]);
-        gr.trip_id = tripId;
-        gameUp.push(gr);
-      }
-    }
-    if (gameUp.length) {
-      fail(await client.from("format_games").upsert(gameUp, { onConflict: "trip_id,game_id" }), "save games");
-    }
-    for (var gk2 in oldGames) {
-      if (oldGames.hasOwnProperty(gk2) && !(gk2 in newGames)) {
-        fail(await client.from("format_games").delete()
-          .eq("trip_id", tripId).eq("game_id", gk2), "delete game");
-      }
-    }
-    } /* end __fgReady gate */
 
     /* 7. rewrite temp ids in the live mirror */
     applyRemap(cur, remap);
@@ -1627,23 +1581,7 @@ const SharedStore = (() => {
 
   /* ---------------- realtime ---------------- */
   var TRIP_TABLES = ["trips", "golfers", "date_options", "course_options",
-                     "stay_options", "cost_items", "scores", "dues_paid", "skin_counts",
-                     "format_games"];
-
-  /* Probe once per session whether the Format Genius migration has run.
-     Lets the app ship before the migration: games/hole data stay local-only
-     until the DB is ready, instead of breaking score sync. */
-  async function probeFormatGenius(client) {
-    try {
-      var r = await client.from("format_games").select("id").limit(1);
-      client.__fgReady = !(r && r.error);
-    } catch (e) { client.__fgReady = false; }
-    try {
-      var r2 = await client.from("scores").select("holes").limit(1);
-      client.__holesReady = !(r2 && r2.error);
-    } catch (e) { client.__holesReady = false; }
-    return client.__fgReady;
-  }
+                     "stay_options", "cost_items", "scores", "dues_paid", "skin_counts"];
   var VOTE_TABLES = ["date_votes", "course_votes", "stay_votes"];
 
   /* onEvent(payload) — payload._voteTable is true for the unfiltered vote
@@ -1652,7 +1590,6 @@ const SharedStore = (() => {
   function subscribeTrip(client, tripId, onEvent, onStatus) {
     var ch = client.channel("trip-" + tripId);
     TRIP_TABLES.forEach(function (t) {
-      if (t === "format_games" && !client.__fgReady) return; /* table may not exist yet */
       ch.on("postgres_changes",
         { event: "*", schema: "public", table: t, filter: "trip_id=eq." + tripId },
         function (p) { onEvent(p); });
@@ -1699,7 +1636,6 @@ const SharedStore = (() => {
     leaveTrip: leaveTrip,
     claimTrip: claimTrip,
     subscribeTrip: subscribeTrip,
-    probeFormatGenius: probeFormatGenius,
     haversineMiles: haversineMiles,
     buildCourseSearchRequest: buildCourseSearchRequest,
     courseSearchRequestFor: courseSearchRequestFor,
@@ -2068,7 +2004,7 @@ function openTripWizard() {
   if (!client) { alert("Couldn't load the Supabase library — check your connection and reload."); return; }
   if (!AUTH.user) { openLoginModal("create-trip"); return; }
   WIZ = { step: 1, name: "", area: "", organizer: "", startMode: "blank",
-          crew: [], copiedMode: null, busy: false };
+          crew: [], copiedMode: null, busy: false, datesText: "" };
   if (!SHARED) {
     WIZ.name = S.trip.name || ""; WIZ.area = S.trip.area || "";
     WIZ.organizer = isPlaceholderName(S.trip.organizer) ? "" : (S.trip.organizer || "");
@@ -2076,10 +2012,15 @@ function openTripWizard() {
   renderWizard();
 }
 function wizardReadStep1() {
-  const n = $("#wz-name"), a = $("#wz-area"), o = $("#wz-org");
+  const n = $("#wz-name"), a = $("#wz-area"), o = $("#wz-org"), d = $("#wz-dates");
   if (n) WIZ.name = (n.value || "").trim();
   if (a) WIZ.area = (a.value || "").trim();
   if (o) WIZ.organizer = (o.value || "").trim();
+  if (d) WIZ.datesText = (d.value || "").trim();
+}
+function parseProposedDates(txt) {
+  return (txt || "").split(/[,\n;]+/).map(s => s.trim()).filter(Boolean)
+    .map(label => ({ label: label, sub: "" }));
 }
 function wizardNext() {
   wizardReadStep1();
@@ -2121,6 +2062,9 @@ function renderWizard() {
       '<input type="text" id="wz-area" value="' + esc(WIZ.area) + '" placeholder="e.g. Lake of the Ozarks, MO" autocomplete="off">' +
       '<label class="f" for="wz-org">Organizer</label>' +
       '<input type="text" id="wz-org" value="' + esc(WIZ.organizer) + '" placeholder="Your name" autocomplete="off">' +
+      '<label class="f" for="wz-dates">Proposed dates <span class="muted">(optional)</span></label>' +
+      '<input type="text" id="wz-dates" value="' + esc(WIZ.datesText || "") + '" placeholder="e.g. Oct 9\u201311, Oct 16\u201318" autocomplete="off">' +
+      '<p class="muted small" style="margin-top:4px">Separate multiple options with commas \u2014 the crew votes on them after you create the trip.</p>' +
       (!SHARED ?
         '<label class="f">Start from</label>' +
         '<label class="radio-card' + (WIZ.startMode === "blank" ? " sel" : "") + '">' +
@@ -2145,7 +2089,7 @@ function renderWizard() {
     body =
       '<div class="kicker">New trip \u00b7 Step 2 of 3</div><h2>The crew</h2>' +
       '<div class="wiz-progress">' + dots + "</div>" +
-      '<p class="muted small">Add the players now, or skip and do it later from the Trip tab. Emails, phones and GHIN numbers can be added any time.</p>' +
+      '<p class="muted small">Add the players now, or skip and do it later from the Home tab. Emails, phones and GHIN numbers can be added any time.</p>' +
       rows +
       '<button class="btn block" style="margin-top:10px" onclick="wizardAddPlayer()">+ Add player</button>' +
       '<div class="row" style="margin-top:14px"><button class="btn grow" onclick="WIZ.step=1;renderWizard()">Back</button>' +
@@ -2153,12 +2097,17 @@ function renderWizard() {
   } else {
     const crewList = WIZ.crew.length
       ? WIZ.crew.map(m => esc(m.name) + (m.hc == null ? " (TBD)" : " (" + (+m.hc) + ")")).join(", ")
-      : "No players yet \u2014 add them from the Trip tab later";
+      : "No players yet \u2014 add them from the Home tab later";
+    const dateList = parseProposedDates(WIZ.datesText || "");
     body =
       '<div class="kicker">New trip \u00b7 Step 3 of 3</div><h2>Review &amp; create</h2>' +
       '<div class="wiz-progress">' + dots + "</div>" +
       '<div class="card" style="margin:10px 0"><b>' + esc(WIZ.name) + "</b><br><span class='muted small'>" +
         esc(WIZ.area) + " \u00b7 Organized by " + esc(WIZ.organizer || "\u2014") + "</span></div>" +
+      (dateList.length
+        ? '<p class="muted small"><b style="color:var(--ink)">' + dateList.length + " date option" +
+          (dateList.length === 1 ? "" : "s") + ":</b> " + dateList.map(d => esc(d.label)).join(", ") + "</p>"
+        : '<p class="muted small">No dates proposed yet \u2014 add them from the Dates tab later.</p>') +
       '<p class="muted small"><b style="color:var(--ink)">' + WIZ.crew.length + " player" + (WIZ.crew.length === 1 ? "" : "s") +
         ":</b> " + crewList + "</p>" +
       '<p class="muted small">You\u2019ll be the trip owner and get a share link for the crew. Votes start at zero.</p>' +
@@ -2180,7 +2129,8 @@ async function wizardCreate() {
       trip: { name: WIZ.name, area: WIZ.area, organizer: WIZ.organizer },
       golfers: WIZ.crew,
       dates: fromCopy ? S.dates.map(d => ({ label: d.label, sub: d.sub || "",
-        starts_on: d.starts_on || null, ends_on: d.ends_on || null })) : [],
+        starts_on: d.starts_on || null, ends_on: d.ends_on || null }))
+             : parseProposedDates(WIZ.datesText || ""),
       courses: fromCopy ? S.courses.map(c => ({ name: c.name, loc: c.loc || "", drive: c.drive || "",
         verdict: c.verdict || "", researched: !!c.researched, fitsRule: !!c.fitsRule,
         price: c.price || 0, priceText: c.priceText || "" })) : [],
@@ -2220,10 +2170,11 @@ function renderTrip() {
   let html = "";
   if (bootNotice) html += '<div class="notice">' + esc(bootNotice) + "</div>";
 
-  if (!canEditTrip) html += renderTripMember(isShared, az);
-  else html += renderTripOwner(isShared, az, orgName);
+  if (!canEditTrip) html += renderHomeWrap(renderTripMember(isShared, az));
+  else html += renderHomeWrap(renderTripOwner(isShared, az, orgName));
 
   $("#panel-trip").innerHTML = html;
+  loadHomeTrips();
 
   /* guarded: these inputs only exist when their step is expanded */
   const tn = $("#t-name"), ta = $("#t-area"), to = $("#t-org");
@@ -2232,6 +2183,63 @@ function renderTrip() {
   if (to) to.addEventListener("change", e => { S.trip.organizer = e.target.value; save(); renderHero(); });
   const iam = $("#iam");
   if (iam) iam.addEventListener("change", e => setIdentityUI(e.target.value));
+}
+
+/* ================= Home tab: new trips + every trip you run ================= */
+function renderHomeWrap(thisTripHtml) {
+  let html = '<div class="home-hero">' +
+    '<div class="grow"><div class="home-kicker">Caddie home</div>' +
+    '<div class="home-title">Plan the next one.</div>' +
+    '<div class="muted small">Start a new trip, or jump back into a past one.</div></div>' +
+    '<button class="btn lime" onclick="openTripWizard()">+ New trip</button></div>';
+
+  if (AUTH.user) {
+    html += '<div class="home-sec" id="home-trips-sec"><h3>Your trips</h3>' +
+      '<div id="home-trips"><p class="muted small">Loading\u2026</p></div></div>';
+  } else {
+    html += '<div class="home-sec"><div class="card"><b>Log in to keep every trip in one place</b><br>' +
+      '<span class="muted small">Create new trips and revisit past ones any time. ' +
+      "Voting through a shared link never needs an account.</span>" +
+      '<div style="margin-top:10px"><button class="btn lime" onclick="openLoginModal()">Log in</button></div></div></div>';
+  }
+
+  html += '<div class="home-sec"><h3>This trip</h3>' + thisTripHtml + "</div>";
+  return html;
+}
+
+async function loadHomeTrips() {
+  const box = document.getElementById("home-trips");
+  if (!box) return;
+  const client = supaClient();
+  if (!client || !AUTH.user) return;
+  try {
+    const trips = await SharedStore.getMyTrips(client);
+    if (!trips.length) {
+      box.innerHTML = "<p class='muted small'>No trips yet \u2014 tap <b>+ New trip</b> above to start your first.</p>";
+      return;
+    }
+    /* date-option counts so each card shows real context */
+    let counts = {};
+    try {
+      const r = await client.from("date_options").select("trip_id").in("trip_id", trips.map(t => t.id));
+      (r.data || []).forEach(d => { counts[d.trip_id] = (counts[d.trip_id] || 0) + 1; });
+    } catch (e) { /* counts are a nicety */ }
+    const cur = SHARED ? SHARED.tripId : null;
+    box.innerHTML = trips.map(t => {
+      const isCur = !!(cur && t.id === cur);
+      const meta = [(counts[t.id] ? counts[t.id] + " date option" + (counts[t.id] === 1 ? "" : "s") : "dates TBD"),
+                    t.destination || ""].filter(Boolean).join(" \u00b7 ");
+      return "<a class='trip-card" + (isCur ? " current" : "") + "' href='" + location.pathname +
+        "?trip=" + encodeURIComponent(t.slug || t.id) + "'>" +
+        "<div class='grow'><b>" + esc(t.name) + "</b>" +
+        (meta ? "<div class='muted small'>" + esc(meta) + "</div>" : "") + "</div>" +
+        (isCur ? "<span class='badge fit'>Current</span>"
+               : "<span class='badge" + (t.role === "owner" ? " est" : "") + "'>" +
+                 esc(t.role || "member") + "</span>") + "</a>";
+    }).join("");
+  } catch (e) {
+    box.innerHTML = "<p class='muted small'>Couldn't load your trips \u2014 check your connection.</p>";
+  }
 }
 
 /* --- shared-link crew member: slim summary, no setup flow --- */
@@ -2305,14 +2313,9 @@ function renderTripOwner(isShared, az, orgName) {
 
   /* secondary actions stay subtle, out of the primary journey */
   let foot = "";
-  if (AUTH.user) {
-    foot += '<button class="linklike" onclick="toggleMyTrips()">My trips</button>';
-    foot += '<button class="linklike" onclick="openTripWizard()">+ New trip</button>';
-  }
   if (!isShared) foot += '<button class="linklike" onclick="resetDemo()">Reset demo data</button>';
   if (isShared && (!az.ownerId || az.isOwner)) foot += '<button class="linklike danger" onclick="deleteTrip()">Delete trip</button>';
   if (foot) html += '<div class="fstep-foot">' + foot + "</div>";
-  if (AUTH.user) html += '<div class="mytrips" id="mytrips-list"></div>';
   return html;
 }
 
@@ -4969,7 +4972,7 @@ function renderAuthChip() {
       $("chip-menu").classList.remove("open");
       switchTab("trip");
       setTimeout(() => {
-        const t = $("mytrips-list");
+        const t = $("home-trips-sec");
         if (t) t.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 120);
     });
