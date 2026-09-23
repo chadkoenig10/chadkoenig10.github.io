@@ -225,6 +225,55 @@ table.score input.hc{width:48px;}
 .scan-tot{margin-top:8px;font-size:14px;}
 .scan-lowconf{display:inline-block;font-size:11px;font-weight:700;color:#8a5f14;background:#fffbeb;
   border:1px solid #f0d48a;border-radius:99px;padding:2px 8px;margin-left:6px;}
+/* ---- Format Genius ---- */
+.fg-hero{background:linear-gradient(135deg,#f7fee7 0%,#ecfdf5 100%);border:2px solid #d9f99d;}
+.fg-steps{display:flex;gap:6px;margin:10px 0 2px;}
+.fg-dot{height:6px;flex:1;border-radius:99px;background:var(--line);}
+.fg-dot.done{background:var(--fairway);}
+.fg-dot.now{background:var(--lime);}
+.fg-q{font-size:18px;font-weight:800;margin:10px 0;font-family:var(--display);}
+.fg-opts{display:grid;gap:8px;}
+.fg-opt{padding:14px;border:2px solid var(--line);border-radius:14px;background:#fff;font-size:15px;
+  font-weight:700;text-align:left;cursor:pointer;}
+.fg-opt:active{border-color:var(--lime);background:var(--lime-soft);}
+.fg-rec{border:2px solid var(--line);border-radius:16px;padding:14px;margin-top:12px;background:#fff;}
+.fg-rec.top{border-color:var(--lime);background:#fdfff5;}
+.fg-pick{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--fairway);}
+.fg-pick.alt{color:var(--muted);}
+.fg-rec-name{font-size:17px;font-weight:800;font-family:var(--display);margin-top:2px;}
+.fg-why{margin:6px 0 0;padding-left:18px;font-size:13px;color:#4b5a4e;}
+.fg-why li{margin:2px 0;}
+.fg-item{display:block;width:100%;text-align:left;background:#fff;border:2px solid var(--line);
+  border-radius:14px;padding:12px;margin-bottom:8px;cursor:pointer;}
+.fg-item-name{font-weight:800;font-size:15px;display:block;}
+.fg-item-sub{font-size:12.5px;color:var(--muted);display:block;margin-top:2px;}
+.fg-badge{display:inline-block;font-size:11px;font-weight:700;background:var(--lime-soft);
+  border-radius:99px;padding:2px 9px;margin-top:6px;color:#3f6212;}
+.fg-sec{margin-top:12px;}
+.fg-sec-t{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--fairway);margin-bottom:4px;}
+.fg-note{background:#fffbeb;border:1px solid #f0d48a;border-radius:12px;padding:10px 12px;
+  font-size:13px;color:#6b4e0c;margin-top:10px;}
+.fg-team{border:2px solid var(--line);border-radius:14px;padding:10px 12px;margin-top:8px;background:#fff;}
+.fg-team-h{font-weight:800;font-size:14px;margin-bottom:6px;}
+.fg-trow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px dashed var(--line);font-size:14px;}
+.fg-trow select{padding:8px 10px;border:2px solid var(--line);border-radius:10px;font-size:13px;background:#fff;}
+.fg-plist{display:grid;gap:6px;max-height:220px;overflow:auto;}
+.fg-check{display:flex;align-items:center;gap:8px;font-size:14px;padding:8px 10px;border:2px solid var(--line);border-radius:12px;background:#fff;}
+.fg-check input{width:18px;height:18px;accent-color:var(--fairway);}
+.fg-headline{font-size:16px;font-weight:800;margin:8px 0;font-family:var(--display);}
+.fg-board{margin-top:6px;}
+.fg-brow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+.fg-brow:last-child{border-bottom:none;}
+.fg-brow.lead .grow{font-weight:800;}
+.fg-rank{width:28px;text-align:center;flex:none;font-weight:800;}
+.fg-mrow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+.fg-mrow:last-child{border-bottom:none;}
+.fg-nas{display:grid;gap:8px;margin-top:6px;}
+.fg-nas-b{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#f8faf8;
+  border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;}
+.fg-pot{background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:10px 12px;
+  font-size:14px;font-weight:700;color:#14532d;margin-top:10px;}
+.card.game{border-left:5px solid var(--lime);}
 .netpill{display:inline-block;background:var(--lime-soft);border:1.5px solid #d9f99d;color:#3f6212;
   font-weight:800;font-size:12px;border-radius:999px;padding:2px 9px;margin-top:3px;font-family:var(--display);}
 .stand{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px dashed var(--line);}
@@ -650,8 +699,10 @@ function seed() {
         tony:  { r1: 93, r2: 95 },
         brian: { r1: 104 }
       },
-      skins: { mike: 3, pat: 2, chad: 2, dave: 1, steve: 1, tony: 1 }
-    }
+      skins: { mike: 3, pat: 2, chad: 2, dave: 1, steve: 1, tony: 1 },
+      holes: {} /* hole-by-hole, filled by the scorecard camera: { r1: { gid: [18] } } */
+    },
+    games: [] /* Format Genius games */
   };
 }
 
@@ -675,7 +726,8 @@ function productionSeed() {
     ],
     paid: {}
   };
-  s.scores = { skinsOn: false, skinsPot: 5, gross: {}, skins: {} };
+  s.scores = { skinsOn: false, skinsPot: 5, gross: {}, skins: {}, holes: {} };
+  s.games = [];
   return s;
 }
 
@@ -862,13 +914,20 @@ const SharedStore = (() => {
         gross: Object.keys((s.scores && s.scores.gross) || {}).sort().map(function (gid) {
           return { golfer_id: gid,
                    rounds: Object.keys(s.scores.gross[gid]).sort().map(function (rid) {
-                     return { round_key: rid, gross: s.scores.gross[gid][rid] };
+                     return { round_key: rid, gross: s.scores.gross[gid][rid],
+                              holes: (((s.scores.holes || {})[rid] || {})[gid]) || null };
                    }) };
         }),
         skins: Object.keys((s.scores && s.scores.skins) || {}).sort().map(function (gid) {
           return { golfer_id: gid, count: s.scores.skins[gid] };
         })
-      }
+      },
+      games: (s.games || []).map(function (g) {
+        return { game_id: g.id, name: g.name || "", format_id: g.formatId,
+                 rounds: g.rounds || [], teams: g.teams || null, players: g.players || null,
+                 stakes_cents: Math.round((+g.stakes || 0) * 100), net: g.net !== false,
+                 extra: g.extra || {}, status: g.status || "live" };
+      })
     };
   }
 
@@ -892,6 +951,13 @@ const SharedStore = (() => {
         courses = res[2].data || [], stays = res[3].data || [],
         items = res[4].data || [], paid = res[5].data || [],
         scores = res[6].data || [], skins = res[7].data || [];
+    var fgames = [];
+    if (client.__fgReady) {
+      try {
+        var fgr = await client.from("format_games").select("*").eq("trip_id", tripId);
+        if (fgr && !fgr.error) fgames = fgr.data || [];
+      } catch (e) { /* pre-migration: games stay local-only */ }
+    }
 
     var optIds = dates.map(function (d) { return d.id; })
       .concat(courses.map(function (c) { return c.id; }))
@@ -909,15 +975,22 @@ const SharedStore = (() => {
       return rows.filter(function (r) { return r.option_id === oid; })
                  .map(function (r) { return r.golfer_id; });
     };
-    var gross = {};
+    var gross = {}, holes = {};
     scores.forEach(function (r) {
       if (r.gross == null) return;
       (gross[r.golfer_id] = gross[r.golfer_id] || {})[r.round_key] = r.gross;
+      if (r.holes) (holes[r.round_key] = holes[r.round_key] || {})[r.golfer_id] = r.holes;
     });
     var skinMap = {};
     skins.forEach(function (r) { skinMap[r.golfer_id] = r.count; });
     var paidMap = {};
     paid.forEach(function (r) { paidMap[r.golfer_id] = true; });
+    var games = fgames.map(function (r) {
+      return { id: r.game_id, name: r.name || "", formatId: r.format_id,
+               rounds: r.rounds || [], teams: r.teams || null, players: r.players || null,
+               stakes: Math.round((+r.stakes_cents || 0) / 100), net: r.net !== false,
+               extra: r.extra || {}, status: r.status || "live" };
+    });
 
     return {
       v: 2, mode: "shared", activeTab: "trip",
@@ -948,7 +1021,8 @@ const SharedStore = (() => {
         paid: paidMap
       },
       scores: { skinsOn: !!trip.skins_on, skinsPot: +(trip.skins_pot || 5),
-                gross: gross, skins: skinMap }
+                gross: gross, skins: skinMap, holes: holes },
+      games: games
     };
   }
 
@@ -975,7 +1049,16 @@ const SharedStore = (() => {
     if (s.scores) {
       s.scores.gross = rekey(s.scores.gross);
       s.scores.skins = rekey(s.scores.skins);
+      if (s.scores.holes) {
+        var nh = {};
+        Object.keys(s.scores.holes).forEach(function (rid) { nh[rid] = rekey(s.scores.holes[rid]); });
+        s.scores.holes = nh;
+      }
     }
+    (s.games || []).forEach(function (g) {
+      if (g.teams) g.teams = g.teams.map(function (t) { return t.map(fix); });
+      if (g.players) g.players = g.players.map(fix);
+    });
     if (s.votingAs) s.votingAs = fix(s.votingAs);
   }
 
@@ -985,7 +1068,7 @@ const SharedStore = (() => {
     var now = snapshotShared(cur);
     /* A null oldSnap (first push before any snapshot) means "everything is new". */
     var old = oldSnap || { trip: null, golfers: [], dates: [], courses: [], stays: [],
-                           costs: { items: [], paid: [] }, scores: { gross: [], skins: [] } };
+                           costs: { items: [], paid: [] }, scores: { gross: [], skins: [] }, games: [] };
     var same = function (a, b) { return JSON.stringify(a) === JSON.stringify(b); };
     var fail = function (r, what) { if (r && r.error) throw new Error(what + ": " + (r.error.message || r.error)); return r; };
 
@@ -1128,20 +1211,24 @@ const SharedStore = (() => {
     }
     if (paidAdds.length) fail(await client.from("dues_paid").insert(paidAdds), "mark paid");
 
-    /* 6. scores (gross per round) + skins */
+    /* 6. scores (gross per round + hole-by-hole when the DB is ready) + skins */
+    var holesOK = client.__holesReady === true;
+    var pack = function (r) { return JSON.stringify(holesOK ? { g: r.gross, h: r.holes || null } : { g: r.gross }); };
     var oldGross = {}, newGross = {};
     old.scores.gross.forEach(function (gg) {
-      gg.rounds.forEach(function (r) { oldGross[gg.golfer_id + "|" + r.round_key] = r.gross; });
+      gg.rounds.forEach(function (r) { oldGross[gg.golfer_id + "|" + r.round_key] = pack(r); });
     });
     now.scores.gross.forEach(function (gg) {
       var gid = remap[gg.golfer_id] || gg.golfer_id;
-      gg.rounds.forEach(function (r) { newGross[gid + "|" + r.round_key] = r.gross; });
+      gg.rounds.forEach(function (r) { newGross[gid + "|" + r.round_key] = pack(r); });
     });
     var upserts = [];
     for (var uk in newGross) {
       if (newGross.hasOwnProperty(uk) && oldGross[uk] !== newGross[uk]) {
-        var up = uk.split("|");
-        upserts.push({ trip_id: tripId, golfer_id: up[0], round_key: up[1], gross: newGross[uk] });
+        var up = uk.split("|"), parsed = JSON.parse(newGross[uk]);
+        var row = { trip_id: tripId, golfer_id: up[0], round_key: up[1], gross: parsed.g };
+        if (holesOK) row.holes = parsed.h;
+        upserts.push(row);
       }
     }
     if (upserts.length) {
@@ -1172,6 +1259,30 @@ const SharedStore = (() => {
           .eq("trip_id", tripId).eq("golfer_id", skid2), "clear skins");
       }
     }
+
+    /* 6b. Format Genius games (only once the migration has run) */
+    if (client.__fgReady) {
+    var oldGames = {}, newGames = {};
+    (old.games || []).forEach(function (g) { oldGames[g.game_id] = JSON.stringify(g); });
+    (now.games || []).forEach(function (g) { newGames[g.game_id] = JSON.stringify(g); });
+    var gameUp = [];
+    for (var gk in newGames) {
+      if (newGames.hasOwnProperty(gk) && oldGames[gk] !== newGames[gk]) {
+        var gr = JSON.parse(newGames[gk]);
+        gr.trip_id = tripId;
+        gameUp.push(gr);
+      }
+    }
+    if (gameUp.length) {
+      fail(await client.from("format_games").upsert(gameUp, { onConflict: "trip_id,game_id" }), "save games");
+    }
+    for (var gk2 in oldGames) {
+      if (oldGames.hasOwnProperty(gk2) && !(gk2 in newGames)) {
+        fail(await client.from("format_games").delete()
+          .eq("trip_id", tripId).eq("game_id", gk2), "delete game");
+      }
+    }
+    } /* end __fgReady gate */
 
     /* 7. rewrite temp ids in the live mirror */
     applyRemap(cur, remap);
@@ -1516,7 +1627,23 @@ const SharedStore = (() => {
 
   /* ---------------- realtime ---------------- */
   var TRIP_TABLES = ["trips", "golfers", "date_options", "course_options",
-                     "stay_options", "cost_items", "scores", "dues_paid", "skin_counts"];
+                     "stay_options", "cost_items", "scores", "dues_paid", "skin_counts",
+                     "format_games"];
+
+  /* Probe once per session whether the Format Genius migration has run.
+     Lets the app ship before the migration: games/hole data stay local-only
+     until the DB is ready, instead of breaking score sync. */
+  async function probeFormatGenius(client) {
+    try {
+      var r = await client.from("format_games").select("id").limit(1);
+      client.__fgReady = !(r && r.error);
+    } catch (e) { client.__fgReady = false; }
+    try {
+      var r2 = await client.from("scores").select("holes").limit(1);
+      client.__holesReady = !(r2 && r2.error);
+    } catch (e) { client.__holesReady = false; }
+    return client.__fgReady;
+  }
   var VOTE_TABLES = ["date_votes", "course_votes", "stay_votes"];
 
   /* onEvent(payload) — payload._voteTable is true for the unfiltered vote
@@ -1525,6 +1652,7 @@ const SharedStore = (() => {
   function subscribeTrip(client, tripId, onEvent, onStatus) {
     var ch = client.channel("trip-" + tripId);
     TRIP_TABLES.forEach(function (t) {
+      if (t === "format_games" && !client.__fgReady) return; /* table may not exist yet */
       ch.on("postgres_changes",
         { event: "*", schema: "public", table: t, filter: "trip_id=eq." + tripId },
         function (p) { onEvent(p); });
@@ -1571,6 +1699,7 @@ const SharedStore = (() => {
     leaveTrip: leaveTrip,
     claimTrip: claimTrip,
     subscribeTrip: subscribeTrip,
+    probeFormatGenius: probeFormatGenius,
     haversineMiles: haversineMiles,
     buildCourseSearchRequest: buildCourseSearchRequest,
     courseSearchRequestFor: courseSearchRequestFor,
@@ -1596,6 +1725,9 @@ function load() {
       if (s && (s.v === 1 || s.v === 2) && s.golfers) {
         if (!s.stays) s.stays = seed().stays; /* migrate: v2.1 added the Stays tab */
         if (!s.mode) s.mode = "demo";         /* migrate: v2.3 added demo/production modes */
+        if (!s.scores) s.scores = {};
+        if (!s.scores.holes) s.scores.holes = {}; /* migrate: scorecard camera hole data */
+        if (!s.games) s.games = [];              /* migrate: Format Genius games */
         if (s.v === 1) {
           s.v = 2;
           try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
@@ -2876,6 +3008,7 @@ function renderScores() {
     html += '<div class="notice" id="scan-results" style="position:relative;padding-right:44px">' + esc(scanNotice) +
       '<button class="sheet-x" style="width:30px;height:30px;font-size:15px;top:8px;right:8px" onclick="scanNotice=null;renderScores()">×</button></div>';
   }
+  html += renderFgHero() + renderGames();
   const on = !!S.scores.skinsOn;
   const potTotal = on ? S.scores.skinsPot * S.golfers.length : 0;
   html += '<div class="card"><div class="row"><div class="grow"><div class="kicker">Live board</div><h2 style="margin:0">Trip leaderboard</h2>' +
@@ -3138,6 +3271,12 @@ function scanApply() {
     const total = vs.reduce((a, b) => a + b, 0);
     if (!S.scores.gross[r.playerId]) S.scores.gross[r.playerId] = {};
     S.scores.gross[r.playerId][rid] = Math.max(50, Math.min(150, total));
+    /* keep the hole-by-hole grid for Format Genius (pad to 18 with nulls) */
+    if (!S.scores.holes) S.scores.holes = {};
+    if (!S.scores.holes[rid]) S.scores.holes[rid] = {};
+    const grid = r.holes.slice(0, 18);
+    while (grid.length < 18) grid.push(null);
+    S.scores.holes[rid][r.playerId] = grid;
     n++;
   });
   if (!n) { alert('Match at least one row to a player first.'); return; }
@@ -3155,6 +3294,800 @@ function scanApply() {
   renderScores();
   setTimeout(() => { const el = $('#scan-results'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
 }
+
+/* ================= FORMAT GENIUS =================
+   Two doors: (1) Recommend — 4-question quiz picks the right game;
+   (2) Library — 24 plain-English format cards, any of which can be set up.
+   Auto-scored formats compute live from scores; the rest get guided manual
+   tracking (teams, stakes, results) so ANY game in the book can run. */
+
+/* needs: 'totals' | 'holes' | 'teamscore' | 'manual' */
+const FORMATS = [
+{ id:"stroke_net", name:"Stroke Play · Net", short:"Everyone's own ball. Lowest net total wins.",
+  players:"Any number", needs:"totals", auto:true, team:"solo",
+  tags:{ size:["any"], vibe:["fun","brag","money"], hassle:"low", teams:"solo" },
+  how:["Everyone plays their own ball for the whole round.","Subtract your handicap from your gross — lowest net wins.","Play it across one round or total it across the trip."],
+  ties:"Tie splits the pot evenly, or settle it with a sudden-death playoff starting on hole 1.",
+  press:"No presses in stroke play — that's a match-play move.",
+  disputes:["Agree on gimme length before the first tee (inside the leather is standard).","Handicaps must be declared before teeing off — no adjusting after a hot front nine."] },
+{ id:"stroke_gross", name:"Stroke Play · Gross", short:"No handicaps. Lowest raw score wins.",
+  players:"Any number", needs:"totals", auto:true, team:"solo",
+  tags:{ size:["any"], vibe:["brag","money"], hassle:"low", teams:"solo" },
+  how:["Everyone plays their own ball. Raw total, no handicap help.","Best for groups where everyone is roughly the same level."],
+  ties:"Split the pot, or sudden-death playoff from hole 1.",
+  press:"No presses in stroke play.",
+  disputes:["With no handicaps, one ringer ruins the game — be honest about who belongs in this one."] },
+{ id:"bestball_net", name:"Best Ball · Net", short:"2–4 man teams. Best net score on each hole counts.",
+  players:"Teams of 2–4", needs:"holes", auto:true, team:"teams",
+  tags:{ size:["small","medium","large"], vibe:["fun","brag","money"], hassle:"med", teams:"teams" },
+  how:["Everyone plays their own ball the whole way.","On each hole, the team's score is the best NET score among partners.","Handicap strokes are spread evenly across the 18 holes (1 per hole until your handicap runs out, then it cycles)."],
+  ties:"Tied teams split, or playoff: nominated pairs replay holes until someone wins one outright.",
+  press:"Team presses are allowed when 2+ down — the other team must accept before anyone tees off.",
+  disputes:["Decide before the round: does the low-handicap team's best ball get full strokes? (Here: yes, even spread.)","A player who picks up on a hole simply has no score for that hole — partners cover."] },
+{ id:"match_singles", name:"Match Play · Singles", short:"You vs. one guy, hole by hole. Most holes won takes it.",
+  players:"2", needs:"holes", auto:true, team:"solo",
+  tags:{ size:["2"], vibe:["fun","brag","money"], hassle:"med", teams:"solo" },
+  how:["Each hole is its own contest: win the hole, lose it, or halve it.","Handicap strokes spread evenly across the 18 holes.","A match can end early — 3&2 means 3 up with 2 to play."],
+  ties:"A tied match is 'halved.' Split the bet or keep playing sudden death.",
+  press:"The classic press: when you're 2 down, you can start a second match on the spot. Must be offered before teeing off.",
+  disputes:["Conceded putts are final — you can't take back a gimme.","Order of play matters: the guy who's away plays first."] },
+{ id:"match_team", name:"Match Play · Team", short:"Team vs. team, best net ball per hole.",
+  players:"2 teams (any size)", needs:"holes", auto:true, team:"teams",
+  tags:{ size:["small","medium","large"], vibe:["brag","money"], hassle:"med", teams:"teams" },
+  how:["Each team's hole score is its best NET ball.","Win the hole, halve it, or lose it — most holes won takes the match."],
+  ties:"Halved match: split the pot or sudden-death it.",
+  press:"Down 2? Either team can press and start a fresh match-within-the-match.",
+  disputes:["Nominate the order of play per hole before the round — no gaming it mid-match."] },
+{ id:"nassau", name:"Nassau", short:"Three bets in one: front 9, back 9, and total.",
+  players:"2 players or 2 teams", needs:"holes", auto:true, team:"both",
+  tags:{ size:["2","small"], vibe:["fun","brag","money"], hassle:"med", teams:"both" },
+  how:["It's really three matches: front nine, back nine, and the full 18.","Standard money: $5 front, $5 back, $5 overall — '5-5-5'.","Each nine is match play: most holes won on that nine takes it."],
+  ties:"A tied nine or total is a push — nobody wins that bet.",
+  press:"Nassau invented the press. Down on the front? Press it on hole 5 and a new front-nine bet begins. Presses must be announced before teeing off.",
+  disputes:["Automatic presses when 2 down are common but must be agreed BEFORE the round.","A press is a separate bet — it doesn't erase the original one."] },
+{ id:"skins_gross", name:"Skins · Gross", short:"Win a hole outright, win the skin. Ties carry over.",
+  players:"2–8", needs:"holes", auto:true, team:"solo",
+  tags:{ size:["2","small","medium"], vibe:["money","brag"], hassle:"med", teams:"solo" },
+  how:["Lowest GROSS score on a hole wins the skin — but only if it's unique.","Tied low scores? No winner; the skin carries to the next hole.","Carryovers stack: a 3-carry hole is worth 4 skins."],
+  ties:"That's the game — ties carry, they don't split.",
+  press:"No presses; the carryover IS the pressure.",
+  disputes:["Set the skin value and max carryover before the round (cap it or one hole can get silly).","Gimmes must be agreed — a 'good-good' to halve a skin hole needs both players' consent."] },
+{ id:"skins_net", name:"Skins · Net", short:"Skins with handicaps — everyone has a live chance.",
+  players:"2–8", needs:"holes", auto:true, team:"solo",
+  tags:{ size:["2","small","medium"], vibe:["money","fun"], hassle:"med", teams:"solo" },
+  how:["Same as gross skins, but the low NET score (even stroke spread) wins each hole.","Ties carry over and stack."],
+  ties:"Ties carry to the next hole.",
+  press:"No presses.",
+  disputes:["Agree the stroke spread before the round — here it's spread evenly across all 18."] },
+{ id:"scramble", name:"Scramble", short:"Everyone hits, take the best shot, repeat. Low team total wins.",
+  players:"Teams of 2–4", needs:"teamscore", auto:true, team:"teams",
+  tags:{ size:["medium","large"], vibe:["fun","brag"], hassle:"low", teams:"teams" },
+  how:["Everyone tees off. Pick the best shot — everyone plays from there. Repeat until holed.","Enter each team's total per round; the app applies the handicap allowance.","Great equalizer: beginners contribute without tanking the team."],
+  ties:"Split, or chip-off/putt-off from 30 feet.",
+  press:"Rare in scrambles — bet the back nine separately instead.",
+  disputes:["Set the rules first: minimum drives per player (3 is standard), one club-length placement, no improving lies.","Mulligans: decide the number per round before anyone needs one."] },
+{ id:"shamble", name:"Shamble", short:"Scramble off the tee, then everyone plays their own ball.",
+  players:"Teams of 2–4", needs:"manual", auto:false, team:"teams",
+  tags:{ size:["medium","large"], vibe:["fun"], hassle:"med", teams:"teams" },
+  how:["Everyone tees off, take the best drive.","From there everyone plays their OWN ball to the hole.","Take the best 1 (or 2) net scores per hole as the team score."],
+  ties:"Split or sudden-death best-ball playoff.",
+  press:"Allowed when 2+ down in a match-play shamble.",
+  disputes:["The 'best drive' call needs a quick group consensus — no 30-second debates."] },
+{ id:"altshot", name:"Alternate Shot", short:"Two players, one ball, taking turns. Pure teamwork.",
+  players:"Teams of 2", needs:"manual", auto:false, team:"teams",
+  tags:{ size:["2","small"], vibe:["brag","fun"], hassle:"med", teams:"teams" },
+  how:["Partners alternate shots on the SAME ball for the whole hole.","Decide who tees off on odd holes vs. even holes — then alternate.","Team handicap: 50% of combined (standard) — or play gross."],
+  ties:"Halved matches split; stroke-play ties go to scorecard playoff (back 9, then 6, 3, 1).",
+  press:"Match-play presses allowed when 2 down.",
+  disputes:["Tee-shot order is locked for the round — write it down.","No 'advice' coaching mid-hole beyond normal partner talk if you want it friendly."] },
+{ id:"pinehurst", name:"Pinehurst (Chapman)", short:"Both drive, swap balls, then pick one and alternate in.",
+  players:"Teams of 2", needs:"manual", auto:false, team:"teams",
+  tags:{ size:["2","small"], vibe:["fun","brag"], hassle:"high", teams:"teams" },
+  how:["Both players tee off. Then you SWAP: each plays the partner's drive.","Pick the better second shot, then alternate in from there.","Handicap: 60% of low + 40% of high is the classic allowance."],
+  ties:"Split or sudden-death alternate-shot playoff.",
+  press:"Match-play presses allowed.",
+  disputes:["The swap is mandatory — you can't chicken out of your partner's drive."] },
+{ id:"wolf", name:"Wolf", short:"Rotating captain picks a partner — or goes Lone Wolf for double.",
+  players:"4 (or 3)", needs:"manual", auto:false, team:"teams",
+  tags:{ size:["small"], vibe:["money","fun"], hassle:"high", teams:"teams" },
+  how:["One player is the Wolf each hole, rotating in order.","After each tee shot, the Wolf picks a partner — or goes Lone Wolf before anyone tees off for 2x points.","Most points after 18 wins the pot."],
+  ties:"Tied points split the pot.",
+  press:"No formal presses — the Lone Wolf call IS the gamble.",
+  disputes:["Lone Wolf must be declared BEFORE the first tee shot of that hole.","With 3 players the Wolf rotates and the odd man is automatically the Wolf's competition — agree the points split first."] },
+{ id:"vegas", name:"Vegas", short:"Partners' scores combine into one number. Low team total wins.",
+  players:"Teams of 2", needs:"manual", auto:false, team:"teams",
+  tags:{ size:["small","medium"], vibe:["money"], hassle:"high", teams:"teams" },
+  how:["On each hole, partners' scores pair into a two-digit number — low score first (a 4 and 5 = 45).","Low team number wins the hole's points or dollars.","Blow up? Flip it: if a team makes 7+, the digits reverse (74 instead of 47)."],
+  ties:"Tied numbers halve the hole.",
+  press:"Down big? Press the back nine as a fresh bet.",
+  disputes:["The flip rule on 7+ must be agreed before the round — it's what makes Vegas Vegas.","Settle up per hole or total the day — decide first."] },
+{ id:"dots", name:"Dots (Garbage)", short:"Side-action points for greenies, sandies, barkies, and more.",
+  players:"Any number", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["any"], vibe:["fun","money"], hassle:"med", teams:"solo" },
+  how:["Award dots for achievements: green in regulation, up-and-down sandy, hitting the cart path (barky), closest to pin, long drive, etc.","Each dot is worth a set amount — $1 a dot keeps it friendly.","Most dots (or fewest dollars owed) wins."],
+  ties:"Split the pot.",
+  press:"No presses — dots are chaos by design.",
+  disputes:["Write the dot list and values down before the round. Arguments mid-round don't count.","One banker tracks dots for the group — trust but verify."] },
+{ id:"bbb", name:"Bingo-Bango-Bongo", short:"Three points per hole: first on, closest, first in.",
+  players:"2–4", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["2","small"], vibe:["fun"], hassle:"high", teams:"solo" },
+  how:["BINGO: first ball on the green. BANGO: closest to the pin once all balls are on. BONGO: first ball in the hole.","One point each — 3 points per hole, 54 total.","Furthest from the hole plays first, so everyone has a fair shot at Bingo."],
+  ties:"Split points on ties (half each).",
+  press:"No presses.",
+  disputes:["Honor on the tee is by distance — keep it honest or Bingo goes to the wrong guy.","A gimme for Bongo must be conceded by the group."] },
+{ id:"sixes", name:"6-6-6 (Switcher)", short:"Three 6-hole matches, partners switch every six.",
+  players:"4", needs:"manual", auto:false, team:"teams",
+  tags:{ size:["small"], vibe:["fun","brag"], hassle:"med", teams:"teams" },
+  how:["Holes 1–6: one set of partners. 7–12: switch. 13–18: switch again.","Each 6-hole stretch is its own best-ball match.","Win 2 of 3 stretches to take the day."],
+  ties:"A tied stretch is halved; overall ties split.",
+  press:"Press any stretch you're losing 2-down.",
+  disputes:["Draw the partner rotation before the round — no re-drafting after a bad stretch."] },
+{ id:"stableford", name:"Stableford", short:"Points per hole vs. par. Big numbers can't kill you.",
+  players:"Any number", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["any"], vibe:["fun","brag"], hassle:"med", teams:"solo" },
+  how:["Score points per hole against par with full handicap: net eagle 4, net birdie 3, net par 2, net bogey 1, worse 0.","Pick up after net double — the hole's already worth zero.","Most points wins."],
+  ties:"Split, or most points on the back 9 breaks it.",
+  press:"No presses in points games.",
+  disputes:["You need each hole's par AND stroke index — grab the card's row before teeing off.","Max score per hole should be capped (net double) to keep pace."] },
+{ id:"quota", name:"Quota", short:"Beat your personal target. 36 minus handicap is the classic.",
+  players:"Any number", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["any"], vibe:["fun","brag","money"], hassle:"med", teams:"solo" },
+  how:["Your quota = 36 − your handicap (a 10 handicap needs 26 Stableford points).","Score Stableford-style points per hole.","Beat your quota = you're in the money. Most points over quota wins."],
+  ties:"Split, or back-9 points breaks the tie.",
+  press:"No presses.",
+  disputes:["Quotas lock before the round — sandbaggers get side-eye, not adjustments."] },
+{ id:"chicago", name:"Chicago", short:"Start in the hole at 39 minus handicap, play your way out.",
+  players:"Any number", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["any"], vibe:["fun"], hassle:"med", teams:"solo" },
+  how:["Start with negative points: −(39 − handicap).","Earn Stableford points per hole (net birdie 3, par 2, bogey 1).","Claw back to zero or better. Highest final score wins."],
+  ties:"Split or back-9 playoff.",
+  press:"No presses.",
+  disputes:["The 39 baseline is tradition — don't let anyone 'adjust' it after seeing the scores."] },
+{ id:"string", name:"String Game", short:"Everyone gets string. Move your ball, cut the string.",
+  players:"Any number", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["any"], vibe:["fun"], hassle:"low", teams:"solo" },
+  how:["Everyone gets the same length of string (a foot per handicap stroke is classic).","After any shot, you may move the ball — but you must cut off that length of string.","Run out of string and you're playing it as it lies. Lowest score wins."],
+  ties:"Split.",
+  press:"No presses.",
+  disputes:["Measure string honestly — a 'foot' is a foot.","String can't be shared or traded. Nice try."] },
+{ id:"snake", name:"Snake", short:"Three-putt and you hold the snake. Holding it at 18 pays the group.",
+  players:"Any number", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["any"], vibe:["fun","money"], hassle:"low", teams:"solo" },
+  how:["The first 3-putt of the day 'holds the snake.'","Every new 3-putt passes it on.","Whoever holds it after 18 pays the group the agreed amount."],
+  ties:"Only one holder — no ties possible.",
+  press:"No presses. The snake is its own punishment.",
+  disputes:["A putt from the fringe counts as a putt — agree before the round.","Four-putts don't get a refund."] },
+{ id:"greenies", name:"Greenies · Sandies · Barkies", short:"Classic side bets: par-3 greenies, up-and-downs, and cart-path glory.",
+  players:"Any number", needs:"manual", auto:false, team:"solo",
+  tags:{ size:["any"], vibe:["fun","money"], hassle:"low", teams:"solo" },
+  how:["GREENIE: closest to the pin on a par 3 (must be on the green). SANDY: up-and-down from a bunker. BARKY: up-and-down after hitting a tree. ARNIE: win a hole with a birdie after never being on the fairway.","Each is worth the agreed amount, paid by the group or into a pot.","Stack them onto any main game."],
+  ties:"Closest-to-pin ties: nobody close enough — it carries to the next par 3.",
+  press:"No presses.",
+  disputes:["Greenie must be decided by actual measurement, not vibes.","Fringe doesn't count for a greenie. The green is the green."] },
+{ id:"daytona", name:"Daytona (Split Sixes)", short:"2-man teams, but the low score flips holes every six.",
+  players:"4", needs:"manual", auto:false, team:"teams",
+  tags:{ size:["small"], vibe:["money","fun"], hassle:"high", teams:"teams" },
+  how:["Two 2-man teams play best ball.","Holes 1–6: low score wins the hole. 7–12: HIGH score wins (yes, really). 13–18: low again.","Most holes won takes the bet."],
+  ties:"Halved holes; tied matches split.",
+  press:"Press any six you're losing.",
+  disputes:["The flip on 7–12 confuses everyone the first time — the scorekeeper announces 'high holes' on the 7th tee."] }
+];
+function formatById(id){ return FORMATS.find(f => f.id === id); }
+
+/* ---------- recommender: 4 answers -> ranked formats ---------- */
+function recommendFormats(ans) {
+  /* ans: { size:'2'|'small'|'medium'|'large', vibe:'fun'|'brag'|'money',
+            teams:'solo'|'teams'|'mix', hassle:'low'|'any' } */
+  const scored = FORMATS.map(f => {
+    let s = 0; const why = [];
+    const t = f.tags;
+    if (t.size.includes("any") || t.size.includes(ans.size)) { s += 2; }
+    if (t.vibe.includes(ans.vibe)) { s += 2; why.push(vibeWhy(ans.vibe)); }
+    if (ans.teams === "mix" || t.teams === "both" || t.teams === ans.teams) { s += 2; why.push(teamWhy(ans.teams, f)); }
+    if (ans.hassle === "any" || t.hassle === "low" || (ans.hassle === "low" && t.hassle === "low")) {
+      if (t.hassle === "low") { s += 1; why.push("Simple to run — no extra tracking."); }
+    }
+    if (f.auto) { s += 1; why.push("Caddie scores it live for you."); }
+    return { f: f, score: s, why: why.slice(0, 3) };
+  });
+  scored.sort((a, b) => b.score - a.score || (b.f.auto - a.f.auto));
+  return scored.slice(0, 3);
+}
+function vibeWhy(v) {
+  return v === "money" ? "Built for money games." : v === "brag" ? "Settles bragging rights cleanly." : "Keeps it fun for every handicap.";
+}
+function teamWhy(want, f) {
+  if (want === "teams") return "Team format — no one's out of it alone.";
+  if (want === "solo") return "Every player for themselves.";
+  return f.team === "teams" ? "Team-based." : f.team === "solo" ? "Individual." : "Works solo or as teams.";
+}
+
+/* ---------- scoring engine ---------- */
+function holesOf(rid, gid) {
+  const h = S.scores.holes && S.scores.holes[rid] && S.scores.holes[rid][gid];
+  if (!h || !h.length) return null;
+  const full = h.slice(0, 18);
+  return full.every(v => v != null) ? full : null;
+}
+function grossOf(rid, gid) {
+  const g = (S.scores.gross[gid] || {})[rid];
+  return g == null ? null : +g;
+}
+/* handicap strokes spread evenly: 1 per hole until the handicap runs out,
+   then it cycles (a 20 gets 2 strokes on holes 1–2, 1 everywhere else). */
+function strokesOnHole(hc, i) {
+  hc = Math.max(0, Math.round(+hc || 0));
+  return Math.floor(hc / 18) + (i < (hc % 18) ? 1 : 0);
+}
+function netHoles(gid, arr) {
+  const hc = +(golfer(gid).hc || 0);
+  return arr.map((g, i) => g == null ? null : g - strokesOnHole(hc, i));
+}
+function gamePlayers(game) {
+  const ids = (game.players && game.players.length ? game.players : S.golfers.map(g => g.id));
+  return ids.map(golfer).filter(Boolean);
+}
+function gameTeams(game) {
+  if (!game.teams) return null;
+  return game.teams.map((tids, i) => ({
+    idx: i, ids: tids.filter(id => golfer(id)),
+    label: "Team " + String.fromCharCode(65 + i),
+    names: tids.map(id => { const g = golfer(id); return g ? firstNameOf(g) : "?"; }).join(", ")
+  })).filter(t => t.ids.length);
+}
+function teamHc(t) { return t.ids.reduce((a, id) => a + (+(golfer(id).hc || 0)), 0); }
+
+function scoreGame(game) {
+  const f = formatById(game.formatId);
+  if (!f) return { ok: false, note: "Unknown format." };
+  if (!f.auto) return { ok: true, manual: true, f: f };
+  switch (game.formatId) {
+    case "stroke_net": case "stroke_gross": return scoreStroke(game, game.formatId === "stroke_net");
+    case "bestball_net": return scoreBestBall(game);
+    case "match_singles": case "match_team": return scoreMatch(game);
+    case "nassau": return scoreNassau(game);
+    case "skins_gross": case "skins_net": return scoreSkins(game, game.formatId === "skins_net");
+    case "scramble": return scoreScramble(game);
+    default: return { ok: true, manual: true, f: f };
+  }
+}
+
+function scoreStroke(game, net) {
+  const rows = gamePlayers(game).map(g => {
+    let tot = 0, ok = true;
+    game.rounds.forEach(rid => {
+      const s = grossOf(rid, g.id);
+      if (s == null) { ok = false; return; }
+      tot += s - (net ? (+g.hc || 0) : 0);
+    });
+    return { key: g.id, label: g.name, score: ok ? tot : null,
+             detail: ok ? (net ? "net " + tot : "gross " + tot) : "no score yet" };
+  });
+  const done = rows.filter(r => r.score != null).sort((a, b) => a.score - b.score);
+  return { ok: true, f: formatById(game.formatId), standings: done,
+           missing: rows.filter(r => r.score == null).map(r => r.label),
+           headline: done.length ? done[0].label + " leads at " + done[0].detail : "No scores yet." };
+}
+
+function scoreBestBall(game) {
+  const teams = gameTeams(game);
+  if (!teams || !teams.length) return { ok: false, note: "Set up teams first." };
+  const rows = teams.map(t => {
+    let tot = 0, okAll = true; const perRound = [];
+    game.rounds.forEach(rid => {
+      let rTot = 0, rOk = true;
+      for (let i = 0; i < 18; i++) {
+        let best = null;
+        t.ids.forEach(id => {
+          const h = holesOf(rid, id);
+          if (!h) return;
+          const nh = netHoles(id, h)[i];
+          if (nh != null && (best == null || nh < best)) best = nh;
+        });
+        if (best == null) { rOk = false; break; }
+        rTot += best;
+      }
+      perRound.push(rOk ? rTot : null);
+      if (rOk) tot += rTot; else okAll = false;
+    });
+    return { key: "t" + t.idx, label: t.label, sub: t.names, score: okAll ? tot : null,
+             detail: okAll ? "net " + tot + " (" + perRound.join(" + ") + ")" : "needs hole data" };
+  });
+  const done = rows.filter(r => r.score != null).sort((a, b) => a.score - b.score);
+  return { ok: true, f: formatById(game.formatId), standings: done,
+           missing: rows.filter(r => r.score == null).map(r => r.label),
+           headline: done.length ? done[0].label + " leads at net " + done[0].score : "Waiting on scorecards." };
+}
+
+function scoreMatch(game) {
+  const solo = game.formatId === "match_singles";
+  const sides = solo ? gamePlayers(game).map(g => ({ key: g.id, label: g.name, ids: [g.id] }))
+                     : (gameTeams(game) || []).map(t => ({ key: "t" + t.idx, label: t.label, sub: t.names, ids: t.ids }));
+  if (sides.length !== 2) return { ok: false, note: solo ? "Match play needs exactly 2 players." : "Team match play needs exactly 2 teams." };
+  const perRound = game.rounds.map(rid => {
+    let a = 0, b = 0, holes = 0, complete = true;
+    for (let i = 0; i < 18; i++) {
+      const sa = sideHole(sides[0], rid, i, !solo), sb = sideHole(sides[1], rid, i, !solo);
+      if (sa == null || sb == null) { complete = false; break; }
+      holes++;
+      if (sa < sb) a++; else if (sb < sa) b++;
+    }
+    return { rid: rid, a: a, b: b, holes: holes, complete: complete };
+  });
+  const A = perRound.reduce((x, r) => x + r.a, 0), B = perRound.reduce((x, r) => x + r.b, 0);
+  const holesPlayed = perRound.reduce((x, r) => x + r.holes, 0);
+  let status;
+  if (!holesPlayed) status = "No hole data yet — scan a scorecard.";
+  else {
+    const diff = A - B, rem = game.rounds.length * 18 - holesPlayed;
+    if (diff === 0) status = "All square" + (rem > 0 ? " thru " + holesPlayed : "");
+    else {
+      const lead = diff > 0 ? sides[0].label : sides[1].label;
+      status = rem > 0 && Math.abs(diff) > rem ? lead + " wins " + Math.abs(diff) + "&" + rem
+             : lead + " " + Math.abs(diff) + " up" + (rem > 0 ? " thru " + holesPlayed : "");
+    }
+  }
+  return { ok: true, f: formatById(game.formatId), match: true, sides: sides,
+           perRound: perRound, scoreA: A, scoreB: B, headline: status,
+           missing: !holesPlayed ? sides.map(s => s.label) : [] };
+}
+/* side's net score on one hole: solo = player's net; team = best net ball */
+function sideHole(side, rid, i, isTeam) {
+  let best = null;
+  side.ids.forEach(id => {
+    const h = holesOf(rid, id);
+    if (!h) return;
+    const nh = netHoles(id, h)[i];
+    if (nh != null && (best == null || nh < best)) best = nh;
+  });
+  return best;
+}
+
+function scoreNassau(game) {
+  const solo = !game.teams;
+  const sides = solo ? gamePlayers(game).map(g => ({ key: g.id, label: g.name, ids: [g.id] }))
+                     : (gameTeams(game) || []).map(t => ({ key: "t" + t.idx, label: t.label, sub: t.names, ids: t.ids }));
+  if (sides.length !== 2) return { ok: false, note: "Nassau needs 2 players or 2 teams." };
+  let fA = 0, fB = 0, bA = 0, bB = 0, tA = 0, tB = 0, holes = 0;
+  game.rounds.forEach(rid => {
+    for (let i = 0; i < 18; i++) {
+      const sa = sideHole(sides[0], rid, i, !solo), sb = sideHole(sides[1], rid, i, !solo);
+      if (sa == null || sb == null) return;
+      holes++;
+      let w = 0;
+      if (sa < sb) w = 1; else if (sb < sa) w = 2;
+      if (i < 9) { if (w === 1) fA++; else if (w === 2) fB++; }
+      else { if (w === 1) bA++; else if (w === 2) bB++; }
+      if (w === 1) tA++; else if (w === 2) tB++;
+    }
+  });
+  const bet = (a, b) => a === b ? "push" : (a > b ? sides[0].label + " wins" : sides[1].label + " wins");
+  return { ok: true, f: formatById(game.formatId), nassau: true, sides: sides,
+           bets: [
+             { label: "Front 9", a: fA, b: bB, res: bet(fA, fB) },
+             { label: "Back 9", a: bA, b: bB, res: bet(bA, bB) },
+             { label: "Overall", a: tA, b: tB, res: bet(tA, tB) }
+           ],
+           headline: !holes ? "No hole data yet — scan a scorecard."
+             : sides[0].label + " " + fA + "-" + fB + " / " + bA + "-" + bB + " / " + tA + "-" + tB,
+           missing: !holes ? sides.map(s => s.label) : [] };
+}
+
+function scoreSkins(game, net) {
+  const players = gamePlayers(game);
+  const won = {}; players.forEach(p => won[p.id] = 0);
+  let carry = 0, holesDone = 0;
+  const log = [];
+  game.rounds.forEach(rid => {
+    for (let i = 0; i < 18; i++) {
+      const scores = [];
+      players.forEach(p => {
+        const h = holesOf(rid, p.id);
+        if (!h) return;
+        const v = net ? netHoles(p.id, h)[i] : h[i];
+        if (v != null) scores.push({ p: p, v: v });
+      });
+      if (!scores.length) continue;
+      holesDone++;
+      const low = Math.min.apply(null, scores.map(s => s.v));
+      const winners = scores.filter(s => s.v === low);
+      if (winners.length === 1) {
+        won[winners[0].p.id] += 1 + carry;
+        log.push({ hole: i + 1, who: winners[0].p.name, n: 1 + carry });
+        carry = 0;
+      } else carry++;
+    }
+  });
+  const standings = players.map(p => ({ key: p.id, label: p.name, score: won[p.id],
+    detail: won[p.id] + " skin" + (won[p.id] === 1 ? "" : "s") })).sort((a, b) => b.score - a.score);
+  return { ok: true, f: formatById(game.formatId), standings: standings, log: log.slice(-6),
+           carry: carry,
+           headline: !holesDone ? "No hole data yet — scan a scorecard."
+             : standings[0].score ? standings[0].label + " leads with " + standings[0].score + " skins"
+             : "No skins won yet." + (carry ? " " + carry + " carrying over." : ""),
+           missing: players.filter(p => !game.rounds.some(rid => holesOf(rid, p.id))).map(p => p.name) };
+}
+
+function scoreScramble(game) {
+  const teams = gameTeams(game);
+  if (!teams || !teams.length) return { ok: false, note: "Set up teams first." };
+  const allow = +(game.extra.allowance || 20) / 100;
+  const rows = teams.map(t => {
+    let tot = 0, okAll = true; const per = [];
+    game.rounds.forEach(rid => {
+      const s = game.extra.teamScores && game.extra.teamScores[rid] && game.extra.teamScores[rid]["t" + t.idx];
+      if (s == null || s === "") { okAll = false; per.push(null); return; }
+      const net = Math.round(s - allow * teamHc(t));
+      per.push(net); tot += net;
+    });
+    return { key: "t" + t.idx, label: t.label, sub: t.names, score: okAll ? tot : null,
+             detail: okAll ? "net " + tot + " (" + per.join(" + ") + ")" : "enter team score" };
+  });
+  const done = rows.filter(r => r.score != null).sort((a, b) => a.score - b.score);
+  return { ok: true, f: formatById(game.formatId), standings: done, scramble: true, teams: teams,
+           missing: rows.filter(r => r.score == null).map(r => r.label),
+           headline: done.length ? done[0].label + " leads at net " + done[0].score : "Enter each team's total to start." };
+}
+
+/* pot math: stakes $/player across everyone in the game */
+function gamePot(game) {
+  const n = game.teams ? gameTeams(game).reduce((a, t) => a + t.ids.length, 0) : gamePlayers(game).length;
+  return (+game.stakes || 0) * n;
+}
+
+/* ---------- Format Genius UI ---------- */
+let FG = null; /* transient UI state for quiz/setup flows */
+function fgReset(){ FG = null; }
+
+function renderFgHero() {
+  const n = (S.games || []).length;
+  return '<div class="card fg-hero"><div class="row"><div class="grow">' +
+    '<div class="kicker">Format Genius</div>' +
+    '<h2 style="margin:0 0 4px">Run the perfect game</h2>' +
+    '<div class="muted" style="font-size:13px">Tell it your group and vibe — it recommends the format, drafts fair teams, and scores it live.' +
+    (n ? ' <b>' + n + ' game' + (n > 1 ? 's' : '') + ' running.</b>' : '') + '</div></div></div>' +
+    '<div class="row" style="margin-top:10px;gap:8px">' +
+    '<button class="btn lime" onclick="fgQuizStart()">🧠 Recommend a format</button>' +
+    '<button class="btn" onclick="openFgLibrary()">📖 Browse all games</button>' +
+    '</div></div>';
+}
+
+function fgQuizStart() {
+  FG = { quiz: {} };
+  fgQuizStep(0);
+}
+const FG_QS = [
+  { k: "size", q: "How many players in this game?",
+    opts: [["2", "2 players"], ["small", "3–4"], ["medium", "5–8"], ["large", "9+"]] },
+  { k: "vibe", q: "What's the vibe?",
+    opts: [["fun", "😎 Just for fun"], ["brag", "🏆 Bragging rights"], ["money", "💵 Money game"]] },
+  { k: "teams", q: "Solo or teams?",
+    opts: [["solo", "Every player solo"], ["teams", "Teams"], ["mix", "Mix it up"]] },
+  { k: "hassle", q: "How much scoring hassle is OK?",
+    opts: [["low", "Keep it simple"], ["any", "I'll track anything"]] }
+];
+function fgQuizStep(i) {
+  if (i >= FG_QS.length) return fgResults();
+  const Q = FG_QS[i];
+  let html = '<div class="sheet-head"><h3 style="margin:0">Format Genius</h3>' +
+    '<button class="iconbtn" onclick="closeModal()">✕</button></div>' +
+    '<div class="fg-steps">' + FG_QS.map((q, j) =>
+      '<span class="fg-dot' + (j < i ? ' done' : j === i ? ' now' : '') + '"></span>').join("") + '</div>' +
+    '<p class="fg-q">' + Q.q + '</p><div class="fg-opts">';
+  Q.opts.forEach(o => {
+    html += '<button class="fg-opt" onclick="fgAnswer(' + i + ',\'' + o[0] + '\')">' + o[1] + '</button>';
+  });
+  openModal('<div class="sheet">' + html + '</div></div>');
+}
+function fgAnswer(i, val) {
+  FG.quiz[FG_QS[i].k] = val;
+  fgQuizStep(i + 1);
+}
+function fgResults() {
+  const recs = recommendFormats(FG.quiz);
+  let html = '<div class="sheet-head"><h3 style="margin:0">Your perfect games</h3>' +
+    '<button class="iconbtn" onclick="closeModal()">✕</button></div>';
+  recs.forEach((r, i) => {
+    html += '<div class="fg-rec' + (i === 0 ? ' top' : '') + '">' +
+      (i === 0 ? '<div class="fg-pick">★ Top pick</div>' : '<div class="fg-pick alt">Also great</div>') +
+      '<div class="fg-rec-name">' + esc(r.f.name) + '</div>' +
+      '<div class="muted" style="font-size:13px;margin:2px 0 6px">' + esc(r.f.short) + '</div>' +
+      '<ul class="fg-why">' + r.why.map(w => '<li>' + esc(w) + '</li>').join("") + '</ul>' +
+      '<div class="row" style="gap:8px;margin-top:8px">' +
+      '<button class="btn lime sm" onclick="fgSetup(\'' + r.f.id + '\')">Set it up</button>' +
+      '<button class="btn sm" onclick="fgCard(\'' + r.f.id + '\',1)">How it works</button>' +
+      '</div></div>';
+  });
+  html += '<button class="btn block" style="margin-top:10px" onclick="fgQuizStart()">↺ Retake the quiz</button>';
+  openModal('<div class="sheet">' + html + '</div>');
+  fgReset();
+}
+
+/* ---------- library ---------- */
+function openFgLibrary() {
+  let html = '<div class="sheet-head"><h3 style="margin:0">Game library</h3>' +
+    '<button class="iconbtn" onclick="closeModal()">✕</button></div>' +
+    '<input id="fg-search" class="input" placeholder="Search games… (try “wolf” or “team”)" oninput="fgRenderList()">' +
+    '<div id="fg-list" style="margin-top:10px"></div>';
+  openModal('<div class="sheet">' + html + '</div>');
+  fgRenderList();
+}
+function fgRenderList() {
+  const q = normC(($("#fg-search") || {}).value || "");
+  const list = FORMATS.filter(f =>
+    !q || normC(f.name + " " + f.short + " " + f.players).indexOf(q) >= 0);
+  $("#fg-list").innerHTML = list.map(f =>
+    '<button class="fg-item" onclick="fgCard(\'' + f.id + '\')">' +
+    '<span class="fg-item-name">' + esc(f.name) + '</span>' +
+    '<span class="fg-item-sub">' + esc(f.short) + '</span>' +
+    '<span class="fg-badge">' + (f.auto ? '⚡ auto-scored' : '📋 guided') + '</span>' +
+    '</button>').join("") ||
+    '<p class="muted">No games match that search.</p>';
+}
+function fgCard(id, fromQuiz) {
+  const f = formatById(id);
+  if (!f) return;
+  const sec = (t, body) => '<div class="fg-sec"><div class="fg-sec-t">' + t + '</div><div>' + body + '</div></div>';
+  const html = '<div class="sheet-head"><button class="iconbtn" onclick="' +
+      (fromQuiz ? 'fgResults()' : 'openFgLibrary()') + '">‹</button>' +
+    '<h3 style="margin:0;flex:1">' + esc(f.name) + '</h3>' +
+    '<button class="iconbtn" onclick="closeModal()">✕</button></div>' +
+    '<p class="muted" style="margin-top:0">' + esc(f.short) + ' · ' + esc(f.players) +
+    ' · ' + (f.auto ? '⚡ Caddie scores it live' : '📋 Guided setup + manual results') + '</p>' +
+    sec("How it works", '<ul class="fg-why">' + f.how.map(h => '<li>' + esc(h) + '</li>').join("") + '</ul>') +
+    sec("Ties", esc(f.ties)) +
+    sec("Presses", esc(f.press)) +
+    sec("Settle arguments early", '<ul class="fg-why">' + f.disputes.map(d => '<li>' + esc(d) + '</li>').join("") + '</ul>') +
+    '<button class="btn lime block" style="margin-top:12px" onclick="fgSetup(\'' + f.id + '\')">Set up this game</button>';
+  openModal('<div class="sheet">' + html + '</div>');
+}
+
+/* ---------- setup ---------- */
+function fgSetup(formatId) {
+  const f = formatById(formatId);
+  FG = { setup: {
+    formatId: formatId, name: f.name,
+    rounds: [guessScanRound ? guessScanRound() : "r1"],
+    players: S.golfers.map(g => g.id),
+    teams: null, teamSize: 2,
+    stakes: 5, net: true, allowance: 20
+  } };
+  if (f.team !== "solo") fgAutoTeams();
+  fgRenderSetup();
+}
+function fgAutoTeams() {
+  const ids = (FG.setup.players && FG.setup.players.length ? FG.setup.players : S.golfers.map(g => g.id));
+  const sorted = ids.slice().sort((a, b) => (+(golfer(a).hc || 0)) - (+(golfer(b).hc || 0)));
+  const nT = Math.max(2, Math.ceil(sorted.length / FG.setup.teamSize));
+  const teams = Array.from({ length: nT }, () => []);
+  sorted.forEach((id, i) => {
+    const r = Math.floor(i / nT), pos = i % nT;
+    teams[r % 2 === 0 ? pos : nT - 1 - pos].push(id);
+  });
+  FG.setup.teams = teams;
+}
+function fgRenderSetup() {
+  const st = FG.setup, f = formatById(st.formatId);
+  const rounds = ["r1", "r2", "r3"];
+  let html = '<div class="sheet-head"><button class="iconbtn" onclick="openFgLibrary()">‹</button>' +
+    '<h3 style="margin:0;flex:1">Set up: ' + esc(f.name) + '</h3>' +
+    '<button class="iconbtn" onclick="closeModal()">✕</button></div>';
+  html += '<label class="fld"><span>Game name</span><input id="fg-name" class="input" value="' + esc(st.name) + '"></label>';
+  html += '<div class="fld"><span>Rounds</span><div class="chips">' + rounds.map(rid =>
+    '<button class="chip' + (st.rounds.includes(rid) ? ' on' : '') + '" onclick="fgTglRound(\'' + rid + '\')">' +
+    roundLabel(rid) + '</button>').join("") + '</div></div>';
+  if (f.team === "solo") {
+    html += '<div class="fld"><span>Players (' + st.players.length + ')</span><div class="fg-plist">' +
+      S.golfers.map(g => '<label class="fg-check"><input type="checkbox"' +
+        (st.players.includes(g.id) ? ' checked' : '') + ' onchange="fgTglPlayer(\'' + g.id + '\')">' +
+        esc(g.name) + ' <span class="muted">HC ' + (+g.hc || 0) + '</span></label>').join("") + '</div></div>';
+  } else {
+    html += '<div class="fld"><span>Team size</span><div class="chips">' + [2, 3, 4, 5].map(n =>
+      '<button class="chip' + (st.teamSize === n ? ' on' : '') + '" onclick="fgTeamSize(' + n + ')">' + n + 's</button>').join("") +
+      '</div></div><div class="fld"><span>Teams — snake-drafted by handicap (tweak below)</span>';
+    st.teams.forEach((t, ti) => {
+      html += '<div class="fg-team"><div class="fg-team-h">Team ' + String.fromCharCode(65 + ti) +
+        ' <span class="muted">combined HC ' + t.reduce((a, id) => a + (+(golfer(id).hc || 0)), 0) + '</span></div>';
+      t.forEach(id => {
+        const g = golfer(id);
+        html += '<div class="fg-trow"><span>' + esc(g.name) + ' <span class="muted">HC ' + (+g.hc || 0) + '</span></span>' +
+          '<select onchange="fgMovePlayer(\'' + id + '\',this.value)">' +
+          st.teams.map((_, i) => '<option value="' + i + '"' + (i === ti ? ' selected' : '') + '>Team ' +
+            String.fromCharCode(65 + i) + '</option>').join("") + '</select></div>';
+      });
+      html += '</div>';
+    });
+    html += '<button class="btn sm" style="margin-top:6px" onclick="fgAutoTeams();fgRenderSetup()">🎲 Re-draft teams</button></div>';
+  }
+  html += '<div class="row" style="gap:10px"><label class="fld grow"><span>Stakes per player ($)</span>' +
+    '<input id="fg-stakes" class="input" type="number" min="0" value="' + (+st.stakes || 0) + '"></label>';
+  if (["stroke_net", "stroke_gross", "skins_gross", "skins_net"].includes(f.id)) {
+    html += '<label class="fld grow"><span>Scoring</span><div class="chips">' +
+      '<button class="chip' + (st.net ? ' on' : '') + '" onclick="FG.setup.net=true;fgRenderSetup()">Net</button>' +
+      '<button class="chip' + (!st.net ? ' on' : '') + '" onclick="FG.setup.net=false;fgRenderSetup()">Gross</button></div></label>';
+  }
+  if (f.id === "scramble") {
+    html += '<label class="fld grow"><span>Handicap allowance</span><select id="fg-allow" class="input">' +
+      [10, 15, 20, 25].map(p => '<option value="' + p + '"' + (st.allowance === p ? ' selected' : '') + '>' + p + '% of combined</option>').join("") +
+      '</select></label>';
+  }
+  html += '</div>';
+  if (f.needs === "holes") {
+    const missing = st.players.filter(id => !st.rounds.every(rid => holesOf(rid, id)));
+    if (missing.length) html += '<p class="fg-note">⚠️ ' + missing.length + ' player' + (missing.length > 1 ? 's' : '') +
+      ' need' + (missing.length > 1 ? '' : 's') + ' hole-by-hole data — scan their scorecards after the round.</p>';
+  }
+  html += '<button class="btn lime block" style="margin-top:12px" onclick="fgCreate()">Create game</button>';
+  openModal('<div class="sheet">' + html + '</div>');
+}
+function fgTglRound(rid) {
+  const r = FG.setup.rounds, i = r.indexOf(rid);
+  if (i >= 0) { if (r.length > 1) r.splice(i, 1); } else r.push(rid);
+  fgRenderSetup();
+}
+function fgTglPlayer(gid) {
+  const p = FG.setup.players, i = p.indexOf(gid);
+  if (i >= 0) p.splice(i, 1); else p.push(gid);
+  if (FG.setup.teams) fgAutoTeams();
+  fgRenderSetup();
+}
+function fgTeamSize(n) { FG.setup.teamSize = n; fgAutoTeams(); fgRenderSetup(); }
+function fgMovePlayer(gid, ti) {
+  ti = +ti;
+  FG.setup.teams.forEach(t => { const i = t.indexOf(gid); if (i >= 0) t.splice(i, 1); });
+  FG.setup.teams[ti].push(gid);
+  FG.setup.teams = FG.setup.teams.filter(t => t.length);
+  fgRenderSetup();
+}
+function fgCreate() {
+  const st = FG.setup, f = formatById(st.formatId);
+  const name = (($("#fg-name") || {}).value || "").trim() || f.name;
+  const stakes = Math.max(0, +((($("#fg-stakes") || {}).value) || 0));
+  const game = {
+    id: "g" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+    name: name, formatId: st.formatId,
+    rounds: st.rounds.slice().sort(),
+    teams: f.team === "solo" ? null : st.teams.map(t => t.slice()),
+    players: f.team === "solo" ? st.players.slice() : null,
+    stakes: stakes, net: st.net,
+    extra: { allowance: st.allowance || 20, teamScores: {}, result: null },
+    status: "live"
+  };
+  /* stroke/skins net toggle remaps the format variant */
+  if (st.formatId === "stroke_net" && !st.net) game.formatId = "stroke_gross";
+  if (st.formatId === "stroke_gross" && st.net) game.formatId = "stroke_net";
+  if (st.formatId === "skins_gross" && st.net) game.formatId = "skins_net";
+  if (st.formatId === "skins_net" && !st.net) game.formatId = "skins_gross";
+  if (!S.games) S.games = [];
+  S.games.push(game);
+  fgReset(); closeModal(); save(); renderScores();
+  setTimeout(() => { const el = $("#game-" + game.id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 80);
+}
+
+/* ---------- live game cards ---------- */
+function renderGames() {
+  const games = S.games || [];
+  if (!games.length) return "";
+  return games.map(game => {
+    const f = formatById(game.formatId);
+    const res = scoreGame(game);
+    let html = '<div class="card game" id="game-' + game.id + '"><div class="row"><div class="grow">' +
+      '<div class="kicker">' + (res.manual ? '📋 Guided game' : '⚡ Live scoring') + '</div>' +
+      '<h2 style="margin:0">' + esc(game.name) + '</h2>' +
+      '<div class="muted" style="font-size:12px">' + esc(f ? f.name : game.formatId) + ' · ' +
+      game.rounds.map(roundLabel).join(", ") + (game.stakes > 0 ? ' · 💵 $' + game.stakes + '/player' : '') + '</div>' +
+      '</div><button class="iconbtn" title="Delete game" onclick="fgDelete(\'' + game.id + '\')">🗑</button></div>';
+    if (!res.ok) {
+      html += '<p class="fg-note">⚠️ ' + esc(res.note) + '</p>';
+    } else if (res.manual) {
+      html += renderManualGame(game, f);
+    } else if (res.match) {
+      html += '<div class="fg-headline">' + esc(res.headline) + '</div>';
+      res.perRound.forEach(pr => {
+        html += '<div class="fg-mrow"><span>' + esc(roundLabel(pr.rid)) + '</span><b>' +
+          esc(res.sides[0].label) + ' ' + pr.a + ' – ' + pr.b + ' ' + esc(res.sides[1].label) + '</b>' +
+          (pr.complete ? '<span class="muted">final</span>' : '<span class="muted">thru ' + pr.holes + '</span>') + '</div>';
+      });
+    } else if (res.nassau) {
+      html += '<div class="fg-headline">' + esc(res.headline) + '</div>';
+      html += '<div class="fg-nas">' + res.bets.map(b =>
+        '<div class="fg-nas-b"><span>' + esc(b.label) + '</span><b>' + b.a + ' – ' + b.b + '</b><span class="muted">' +
+        esc(b.res) + '</span></div>').join("") + '</div>';
+    } else {
+      html += '<div class="fg-headline">' + esc(res.headline) + '</div>';
+      if (res.standings && res.standings.length) {
+        html += '<div class="fg-board">' + res.standings.map((s, i) =>
+          '<div class="fg-brow' + (i === 0 ? ' lead' : '') + '"><span class="fg-rank">' +
+          (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1)) + '</span>' +
+          '<span class="grow">' + esc(s.label) + (s.sub ? ' <span class="muted">' + esc(s.sub) + '</span>' : '') + '</span>' +
+          '<b>' + esc(s.detail) + '</b></div>').join("") + '</div>';
+      }
+      if (res.log && res.log.length) {
+        html += '<div class="muted" style="font-size:12px;margin-top:6px">Recent: ' +
+          res.log.map(l => 'H' + l.hole + ' → ' + esc(l.who) + (l.n > 1 ? ' (' + l.n + ')' : '')).join(' · ') + '</div>';
+      }
+    }
+    if (res.scramble) html += renderScrambleEntry(game, res);
+    if (res.missing && res.missing.length && !res.manual) {
+      html += '<p class="fg-note">⏳ Waiting on: ' + esc(res.missing.join(", ")) +
+        (f.needs === "holes" ? ' — scan scorecards from the Scores tab.' : '.') + '</p>';
+    }
+    const pot = gamePot(game);
+    if (pot > 0 && res.ok && !res.manual) {
+      const leaders = res.standings ? res.standings.filter(s => s.score === res.standings[0].score) : [];
+      html += '<div class="fg-pot">💰 Pot $' + pot + (leaders.length ?
+        ' → ' + leaders.map(l => esc(l.label)).join(" + ") + ' $' + (pot / leaders.length).toFixed(0) + ' each' : '') + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }).join("");
+}
+function renderManualGame(game, f) {
+  const r = game.extra.result;
+  let html = '<p class="muted" style="font-size:13px">' + esc(f.short) + '</p>';
+  if (r && r.winner) {
+    html += '<div class="fg-headline">🏆 ' + esc(r.winnerLabel) + ' wins' +
+      (game.stakes > 0 ? ' — takes $' + gamePot(game) : '') + '</div>';
+    if (r.note) html += '<p class="muted" style="font-size:13px">' + esc(r.note) + '</p>';
+    html += '<button class="btn sm" onclick="fgClearResult(\'' + game.id + '\')">Clear result</button>';
+  } else {
+    const opts = game.teams
+      ? gameTeams(game).map(t => ['t' + t.idx, t.label + " (" + t.names + ")"])
+      : gamePlayers(game).map(g => [g.id, g.name]);
+    html += '<div class="row" style="gap:8px;margin-top:6px"><select id="fg-win-' + game.id + '" class="input grow">' +
+      '<option value="">Winner…</option>' +
+      opts.map(o => '<option value="' + o[0] + '">' + esc(o[1]) + '</option>').join("") + '</select>' +
+      '<button class="btn lime sm" onclick="fgSaveResult(\'' + game.id + '\')">Save</button></div>' +
+      '<input id="fg-note-' + game.id + '" class="input" style="margin-top:6px" placeholder="Note (optional: score, payout split…)">' +
+      '<button class="btn sm block" style="margin-top:8px" onclick="fgCard(\'' + f.id + '\')">📖 Rules refresher</button>';
+  }
+  return html;
+}
+function fgSaveResult(id) {
+  const g = (S.games || []).find(x => x.id === id);
+  if (!g) return;
+  const w = ($("#fg-win-" + id) || {}).value;
+  if (!w) { alert("Pick a winner first."); return; }
+  const label = g.teams
+    ? (gameTeams(g).find(t => "t" + t.idx === w) || {}).label
+    : (golfer(w) || {}).name;
+  g.extra.result = { winner: w, winnerLabel: label || w,
+                     note: ((($("#fg-note-" + id) || {}).value) || "").trim() };
+  save(); renderScores();
+}
+function fgClearResult(id) {
+  const g = (S.games || []).find(x => x.id === id);
+  if (g) { g.extra.result = null; save(); renderScores(); }
+}
+function renderScrambleEntry(game, res) {
+  let html = '<div class="fld" style="margin-top:8px"><span>Team totals (gross) — ' +
+    (game.extra.allowance || 20) + '% handicap allowance applied</span>';
+  game.rounds.forEach(rid => {
+    html += '<div class="fg-trow"><span>' + esc(roundLabel(rid)) + '</span><span class="row" style="gap:6px">' +
+      res.teams.map(t => {
+        const v = (game.extra.teamScores[rid] && game.extra.teamScores[rid]["t" + t.idx]) || "";
+        return '<label class="muted" style="font-size:11px">' + esc(t.label) +
+          '<input class="input sm" style="width:64px" type="number" min="40" max="150" value="' + v +
+          '" onchange="fgTeamScore(\'' + game.id + '\',\'' + rid + '\',' + t.idx + ',this.value)"></label>';
+      }).join("") + '</span></div>';
+  });
+  return html + '</div>';
+}
+function fgTeamScore(id, rid, ti, val) {
+  const g = (S.games || []).find(x => x.id === id);
+  if (!g) return;
+  g.extra.teamScores[rid] = g.extra.teamScores[rid] || {};
+  if (val === "" || val == null) delete g.extra.teamScores[rid]["t" + ti];
+  else g.extra.teamScores[rid]["t" + ti] = Math.max(40, Math.min(150, +val));
+  save(); renderScores();
+}
+function fgDelete(id) {
+  if (!confirm("Delete this game? Scores on the Scores tab are untouched.")) return;
+  S.games = (S.games || []).filter(g => g.id !== id);
+  save(); renderScores();
+}
+
+/* ================= end FORMAT GENIUS UI ================= */
 
 /* ================= STROKESAVER — natural-language trip assistant =================
    Client-side only (no network). Rules-based intent parser + executor over
@@ -3765,6 +4698,7 @@ async function boot() {
     if (supaReady()) {
       if (client) {
         SHARED = { client: client, tripId: tripId };
+        await SharedStore.probeFormatGenius(client);
         document.querySelector(".footer").innerHTML =
           "Shared trip &middot; anyone with the link can view and vote &middot; logins optional &middot; <a href=\"privacy.html\">Privacy</a>";
         document.querySelectorAll(".panel").forEach(p =>
