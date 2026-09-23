@@ -4715,6 +4715,9 @@ async function boot() {
   /* Login is required for everyone: no session, no app. */
   const user = await initAuth();
   if (!user && supaReady()) { enterLoginGate(); return; }
+  /* Signed in: make sure the login gate is fully gone (it only closes via sign-in). */
+  document.body.classList.remove("gated");
+  closeLoginModal();
   const client = supaClient();
   const tripParam = SharedStore.parseTripParam(location.search);
   let tripId = tripParam && tripParam.id ? tripParam.id : null;
@@ -4730,7 +4733,6 @@ async function boot() {
     if (supaReady()) {
       if (client) {
         SHARED = { client: client, tripId: tripId };
-        await SharedStore.probeFormatGenius(client);
         document.querySelector(".footer").innerHTML =
           "Shared trip &middot; log in to view and vote &middot; <a href=\"privacy.html\">Privacy</a>";
         document.querySelectorAll(".panel").forEach(p =>
