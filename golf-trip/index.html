@@ -324,7 +324,8 @@ table.score input.hc{width:48px;}
 #sheet-backdrop{position:fixed;inset:0;z-index:70;background:rgba(16,35,26,.45);
   backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .3s;}
 /* ---- auth (login chip + modal) ---- */
-#auth-chip{position:fixed;top:12px;right:12px;z-index:80;}
+#auth-chip{position:fixed;top:calc(12px + env(safe-area-inset-top, 0px));right:12px;z-index:80;
+  -webkit-transform:translateZ(0);transform:translateZ(0);}
 #auth-chip .chipbtn{display:flex;align-items:center;gap:8px;background:var(--paper);
   border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 5px;
   box-shadow:var(--sh);cursor:pointer;font-family:var(--display);font-weight:700;
@@ -344,6 +345,23 @@ table.score input.hc{width:48px;}
 .auth-modal{position:fixed;inset:0;z-index:90;display:none;align-items:center;
   justify-content:center;background:rgba(16,35,26,.45);padding:20px;}
 .auth-modal.open{display:flex;}
+
+/* ---- login gate: login is required for everyone ----
+   Logged-out visitors see the login card over a branded splash;
+   the app chrome stays hidden until they sign in. */
+#gate-splash{position:fixed;inset:0;z-index:84;display:none;flex-direction:column;
+  align-items:center;text-align:center;padding:9vh 28px 40px;
+  background:linear-gradient(165deg,#f0fdf4 0%,#ffffff 52%,#ecfdf5 100%);}
+#gate-splash .gate-ball{width:76px;height:76px;border-radius:50%;margin:0 auto 18px;
+  background:radial-gradient(circle at 34% 30%,#ffffff 0 8%,#dcfce7 9% 38%,#bbf7d0 39% 70%,#86efac 71% 100%);
+  box-shadow:0 14px 30px rgba(34,163,85,.25), inset -6px -8px 14px rgba(34,163,85,.18);}
+#gate-splash h1{font-family:var(--display);font-size:34px;margin:0 0 8px;color:var(--ink);letter-spacing:-.5px;}
+#gate-splash p{margin:0;color:var(--muted);font-size:15px;max-width:300px;}
+body.gated #gate-splash{display:flex;}
+body.gated #auth-chip,body.gated .tabbar,body.gated #fab,body.gated #sheet,
+body.gated #toast,body.gated #sheet-backdrop{display:none !important;}
+body.gated .auth-x{display:none;}
+body.gated .auth-modal{background:transparent;}
 .auth-card{background:var(--paper);border-radius:22px;box-shadow:var(--sh);
   max-width:380px;width:100%;padding:26px 24px;position:relative;
   max-height:92vh;overflow:auto;}
@@ -540,12 +558,17 @@ table.score input.hc{width:48px;}
     </button>
   </div>
 </div>
+<div id="gate-splash" aria-hidden="true">
+  <div class="gate-ball"></div>
+  <h1>Caddie</h1>
+  <p>One link for the whole crew — log in to view the trip and vote.</p>
+</div>
 <div class="auth-modal" id="auth-modal">
   <div class="auth-card" role="dialog" aria-label="Log in to Caddie">
     <button class="auth-x" id="auth-x" aria-label="Close">✕</button>
     <div class="kicker">Caddie account</div>
     <h2 id="auth-title">Log in</h2>
-    <p class="muted small" id="auth-sub">Log in to create trips and keep them in My trips. Voting through a shared link never needs an account.</p>
+    <p class="muted small" id="auth-sub">Log in to Caddie to view this trip, vote with the crew, and keep your trips in My trips.</p>
     <button class="btn block auth-google" id="auth-google">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
       Continue with Google
@@ -2199,7 +2222,7 @@ function renderHomeWrap(thisTripHtml) {
   } else {
     html += '<div class="home-sec"><div class="card"><b>Log in to keep every trip in one place</b><br>' +
       '<span class="muted small">Create new trips and revisit past ones any time. ' +
-      "Voting through a shared link never needs an account.</span>" +
+      "Voting is for logged-in crew members — one account for the whole group.</span>" +
       '<div style="margin-top:10px"><button class="btn lime" onclick="openLoginModal()">Log in</button></div></div></div>';
   }
 
@@ -4680,12 +4703,17 @@ function subscribeShared() {
   );
 }
 async function boot() {
+  /* Paint the login chip synchronously before any await: a slow or hanging
+     backend must never leave the header without a login entry point. */
+  renderAuthChip();
   /* OAuth callback: restore the stashed ?trip= before resolving anything */
   if (supaReady()) {
     const ac = supaClient();
     if (ac && await maybeRestoreAuthReturn(ac)) return;
   }
-  initAuth();
+  /* Login is required for everyone: no session, no app. */
+  const user = await initAuth();
+  if (!user && supaReady()) { enterLoginGate(); return; }
   const client = supaClient();
   const tripParam = SharedStore.parseTripParam(location.search);
   let tripId = tripParam && tripParam.id ? tripParam.id : null;
@@ -4703,7 +4731,7 @@ async function boot() {
         SHARED = { client: client, tripId: tripId };
         await SharedStore.probeFormatGenius(client);
         document.querySelector(".footer").innerHTML =
-          "Shared trip &middot; anyone with the link can view and vote &middot; logins optional &middot; <a href=\"privacy.html\">Privacy</a>";
+          "Shared trip &middot; log in to view and vote &middot; <a href=\"privacy.html\">Privacy</a>";
         document.querySelectorAll(".panel").forEach(p =>
           p.classList.toggle("active", p.id === "panel-trip"));
         document.getElementById("panel-trip").innerHTML =
@@ -4836,38 +4864,60 @@ async function maybeRestoreAuthReturn(client) {
   return false;
 }
 
+/* Resolves with the signed-in user, or null. Never hangs boot: settles on
+   INITIAL_SESSION / getSession, with a timeout as a backstop. */
 function initAuth() {
   const client = supaClient();
   renderAuthChip();
-  if (!client) return;
-  SharedStore.onAuthStateChange(client, (event, session) => {
-    AUTH.user = session && session.user ? session.user : null;
-    AUTH.ready = true;
-    renderAuthChip();
-    if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && AUTH.user) {
-      maybeRestoreAuthReturn(client).then(restored => {
-        if (restored) return;
-        if (pendingPostLogin) {
-          const p = pendingPostLogin; pendingPostLogin = null;
-          closeLoginModal();
-          if (p === "create-trip") openTripWizard();
-          else if (p === "delete-trip") deleteTrip();
-        }
-        if (SHARED) refreshTripAuthz();
-      });
-    }
-    if (event === "SIGNED_OUT") {
-      AUTH.user = null;
+  if (!client) return Promise.resolve(null);
+  return new Promise(resolve => {
+    let settled = false;
+    const settle = u => { if (!settled) { settled = true; resolve(u || null); } };
+    SharedStore.onAuthStateChange(client, (event, session) => {
+      AUTH.user = session && session.user ? session.user : null;
+      AUTH.ready = true;
       renderAuthChip();
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && AUTH.user) {
+        /* Fresh sign-in while gated (email login): reboot cleanly into the app. */
+        if (document.body.classList.contains("gated")) { location.reload(); return; }
+        maybeRestoreAuthReturn(client).then(restored => {
+          if (restored) return;
+          if (pendingPostLogin) {
+            const p = pendingPostLogin; pendingPostLogin = null;
+            closeLoginModal();
+            if (p === "create-trip") openTripWizard();
+            else if (p === "delete-trip") deleteTrip();
+          }
+          if (SHARED) refreshTripAuthz();
+        });
+      }
+      if (event === "INITIAL_SESSION") settle(AUTH.user);
+      if (event === "SIGNED_OUT") {
+        AUTH.user = null;
+        renderAuthChip();
+        if (SHARED) refreshTripAuthz();
+      }
+    });
+    SharedStore.getSession(client).then(sess => {
+      AUTH.user = sess && sess.user ? sess.user : null;
+      AUTH.ready = true;
+      renderAuthChip();
+      settle(AUTH.user);
       if (SHARED) refreshTripAuthz();
-    }
+    }).catch(() => settle(null));
+    /* Backstop: a stalled backend must not hang the login gate forever. */
+    setTimeout(() => settle(AUTH.user), 5000);
   });
-  SharedStore.getSession(client).then(sess => {
-    AUTH.user = sess && sess.user ? sess.user : null;
-    AUTH.ready = true;
-    renderAuthChip();
-    if (SHARED) refreshTripAuthz();
-  });
+}
+
+/* Login is required for everyone: logged-out visitors get the login gate
+   instead of the app. The gate cannot be dismissed without signing in. */
+function enterLoginGate() {
+  document.body.classList.add("gated");
+  pendingPostLogin = null;
+  authModalMode = "signin";
+  openLoginModal();
+  if (!supaClient()) authError("Couldn't reach the login service — check your connection, then reload the page.");
 }
 
 /* ---- login modal ---- */
@@ -4879,7 +4929,10 @@ function openLoginModal(after) {
   $("auth-modal").classList.add("open");
   setTimeout(() => { try { $("auth-email").focus({ preventScroll: true }); } catch (e) {} }, 300);
 }
-function closeLoginModal() { $("auth-modal").classList.remove("open"); }
+function closeLoginModal() {
+  if (document.body.classList.contains("gated")) return; /* the gate only closes via sign-in */
+  $("auth-modal").classList.remove("open");
+}
 function paintAuthModal() {
   const signup = authModalMode === "signup";
   $("auth-title").textContent = signup ? "Create account" : "Log in";
@@ -4944,10 +4997,8 @@ async function submitEmailAuth() {
 async function logOut() {
   const client = supaClient();
   if (client) { try { await SharedStore.signOutUser(client); } catch (e) {} }
-  AUTH.user = null;
-  renderAuthChip();
-  if (SHARED) refreshTripAuthz();
-  toast("Logged out.");
+  /* Login is required for everyone: signing out reboots straight into the login gate. */
+  location.reload();
 }
 
 /* ---- header auth chip ---- */
