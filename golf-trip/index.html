@@ -164,6 +164,16 @@ button.chip{cursor:pointer;font-family:var(--body);}
 .badge.fit{background:#eef2ff;color:var(--fairway-d);border:1.5px solid #c7d2fe;}
 .badge.stretch{background:#f5f3ff;color:#6d28d9;border:1.5px solid #c4b5fd;}
 .badge.sample{background:#f2f3fd;color:#4338ca;border:1.5px solid #c7d2fe;}
+.badge.ok{background:#eef2ff;color:#4338ca;border:1.5px solid #c7d2fe;}
+/* ---- member picker ---- */
+.member-row{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);}
+.member-av{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0;}
+/* ---- receipts ---- */
+.receipt-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.receipt-thumb{width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0;background:#eef2ff;}
+.receipt-thumb.none{background:linear-gradient(135deg,#eef2ff,#e0e7ff);}
+.receipt-preview{width:100%;max-height:220px;object-fit:contain;border-radius:12px;margin:8px 0;background:#f2f3fd;}
 /* full-bleed photo thumb at the top of vote cards (16:9); gradient fallback when no art */
 .thumb{height:118px;margin:-16px -16px 14px;border-radius:18px 18px 0 0;position:relative;
   background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 55%,#c7d2fe 100%);
@@ -883,10 +893,11 @@ const SharedStore = (() => {
      and live in golfer_contacts -- never on the share-link-readable golfers table. */
   function golferToRow(g) {
     return { name: g.name,
-             handicap: (g.hc == null || g.hc === "") ? null : +g.hc };
+             handicap: (g.hc == null || g.hc === "") ? null : +g.hc,
+             user_id: g.user_id || null };
   }
   function rowToGolfer(r) {
-    return { id: r.id, name: r.name, hc: r.handicap };
+    return { id: r.id, name: r.name, hc: r.handicap, user_id: r.user_id || null };
   }
 
   /* ---------------- owner-only contact book ---------------- */
@@ -1098,8 +1109,8 @@ const SharedStore = (() => {
         var ins = fail(await client.from("golfers")
           .insert(Object.assign({ trip_id: tripId }, golferToRow(g))).select(), "add golfer");
         remap[g.id] = ins.data[0].id;
-      } else if (oldG[g.id] && (oldG[g.id].name !== g.name || oldG[g.id].handicap !== g.handicap ||
-                 oldG[g.id].email !== g.email || oldG[g.id].phone !== g.phone || oldG[g.id].ghin !== g.ghin)) {
+      } else if (oldG[g.id] && (oldG[g.id].name !== g.name || oldG[g.id].hc !== g.hc ||
+                 (oldG[g.id].user_id || null) !== (g.user_id || null))) {
         fail(await client.from("golfers")
           .update(golferToRow(g)).eq("id", g.id), "update golfer");
       }
@@ -1607,7 +1618,8 @@ const SharedStore = (() => {
 
   /* ---------------- realtime ---------------- */
   var TRIP_TABLES = ["trips", "golfers", "date_options", "course_options",
-                     "stay_options", "cost_items", "scores", "dues_paid", "skin_counts"];
+                     "stay_options", "cost_items", "scores", "dues_paid", "skin_counts",
+                     "receipts"];
   var VOTE_TABLES = ["date_votes", "course_votes", "stay_votes"];
 
   /* onEvent(payload) — payload._voteTable is true for the unfiltered vote
@@ -1627,6 +1639,93 @@ const SharedStore = (() => {
     });
     ch.subscribe(function (status) { if (onStatus) onStatus(status); });
     return ch;
+  }
+
+  /* ---------------- member directory ---------------- */
+  /* One profiles row per auth user; upserted at sign-in so the member
+     directory is always current. Throws when the table is missing so the
+     caller can degrade gracefully (migration not run yet). */
+  function displayNameFor(user) {
+    var md = (user && user.user_metadata) || {};
+    var name = md.full_name || md.name || "";
+    if (!name && user && user.email) name = String(user.email).split("@")[0];
+    return String(name || "Golfer").slice(0, 80);
+  }
+  async function ensureProfile(client) {
+    var user = await getSessionUser(client);
+    if (!user) return null;
+    var r = await client.from("profiles").upsert({
+      id: user.id,
+      display_name: displayNameFor(user),
+      updated_at: new Date().toISOString()
+    }, { onConflict: "id" }).select("id,display_name");
+    if (r.error) throw r.error;
+    return (r.data && r.data[0]) || null;
+  }
+  /* [{id, display_name}] matching q (case-insensitive). [] on no match or
+     when the profiles table does not exist yet. */
+  async function searchProfiles(client, q) {
+    try {
+      var query = client.from("profiles").select("id,display_name")
+        .order("display_name", { ascending: true }).limit(10);
+      if (q && String(q).trim()) query = query.ilike("display_name", "%" + String(q).trim() + "%");
+      var r = await query;
+      if (r.error) throw r.error;
+      return r.data || [];
+    } catch (e) { return []; }
+  }
+
+  /* ---------------- receipts ---------------- */
+  /* All receipt helpers throw when the receipts table / bucket is missing so
+     the UI can show the "run the database update" state instead of breaking. */
+  async function fetchReceipts(client, tripId) {
+    var r = await client.from("receipts").select(
+      "id,trip_id,user_id,amount,merchant,note,photo_path,paid_by,split_at,created_at"
+    ).eq("trip_id", tripId).order("created_at", { ascending: false });
+    if (r.error) throw r.error;
+    return r.data || [];
+  }
+  async function insertReceipt(client, row) {
+    var r = await client.from("receipts").insert(row).select();
+    if (r.error) throw r.error;
+    return r.data[0];
+  }
+  async function markReceiptSplit(client, id) {
+    var r = await client.from("receipts")
+      .update({ split_at: new Date().toISOString() }).eq("id", id);
+    if (r.error) throw r.error;
+  }
+  async function deleteReceiptRow(client, id) {
+    var r = await client.from("receipts").delete().eq("id", id);
+    if (r.error) throw r.error;
+  }
+  function receiptPhotoPath(tripId, file) {
+    var ext = "jpg";
+    var m = /\.([a-z0-9]+)$/i.exec(file && file.name || "");
+    if (m) ext = m[1].toLowerCase().slice(0, 4);
+    var rand = (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID() : String(Date.now());
+    return tripId + "/" + rand + "." + ext;
+  }
+  async function uploadReceiptPhoto(client, tripId, file) {
+    var path = receiptPhotoPath(tripId, file);
+    var r = await client.storage.from("receipts").upload(path, file, {
+      contentType: (file && file.type) || "image/jpeg", upsert: false
+    });
+    if (r.error) throw r.error;
+    return path;
+  }
+  /* Signed URL (1h) for a private-bucket photo. */
+  async function receiptPhotoUrl(client, path) {
+    if (!path) return null;
+    var r = await client.storage.from("receipts").createSignedUrl(path, 3600);
+    if (r.error) throw r.error;
+    return r.data.signedUrl;
+  }
+  async function deleteReceiptPhoto(client, path) {
+    if (!path) return;
+    var r = await client.storage.from("receipts").remove([path]);
+    if (r.error) throw r.error;
   }
 
   return {
@@ -1662,6 +1761,16 @@ const SharedStore = (() => {
     leaveTrip: leaveTrip,
     claimTrip: claimTrip,
     subscribeTrip: subscribeTrip,
+    displayNameFor: displayNameFor,
+    ensureProfile: ensureProfile,
+    searchProfiles: searchProfiles,
+    fetchReceipts: fetchReceipts,
+    insertReceipt: insertReceipt,
+    markReceiptSplit: markReceiptSplit,
+    deleteReceiptRow: deleteReceiptRow,
+    uploadReceiptPhoto: uploadReceiptPhoto,
+    receiptPhotoUrl: receiptPhotoUrl,
+    deleteReceiptPhoto: deleteReceiptPhoto,
     haversineMiles: haversineMiles,
     buildCourseSearchRequest: buildCourseSearchRequest,
     courseSearchRequestFor: courseSearchRequestFor,
@@ -1909,13 +2018,75 @@ function contactFor(gid) {
   const g = gid ? golfer(gid) : null;
   return { email: (g && g.email) || "", phone: (g && g.phone) || "", ghin: (g && g.ghin) || "" };
 }
-function openPlayerEditor(player, onSave, returnTo, showContacts) {
+function canUseMemberDirectory() {
+  try { return !!(AUTH.user && supaClient()); } catch (e) { return false; }
+}
+/* Add-player starts at the member directory: only signed-up Caddie members
+   can be added to a roster. If someone isn't there yet, the organizer sends
+   them an invite link; they sign up, then they can be selected. */
+let MP_MEMBERS = {}, MP_CTX = null, MP_TIMER = null, PENDING_RECEIPT = null;
+let RECEIPTS = null, RECEIPTS_AT = 0, RECEIPTS_DIRTY = true, receiptsCh = null;
+function openMemberPicker(onSave, returnTo) {
+  MP_CTX = { onSave: onSave || null, returnTo: returnTo || null };
+  MP_MEMBERS = {};
+  openModal(
+    '<button class="sheet-x" onclick="modalDismiss()" aria-label="Close">\u2715</button>' +
+    '<div class="kicker">Add player</div><h2>Find a Caddie member</h2>' +
+    '<p class="muted small">Only people with a Caddie account can join the roster. Search by name:</p>' +
+    '<input type="text" id="mp-q" placeholder="Search members\u2026" autocomplete="off">' +
+    '<div id="mp-results" style="margin-top:6px"><p class="muted small">Start typing to search.</p></div>' +
+    '<div class="notice" style="margin-top:12px"><b>Can\u2019t find them?</b><br>' +
+    '<span class="muted small">They need a Caddie account first — send them your trip link and they can sign up in under a minute.</span>' +
+    '<div style="margin-top:8px"><button class="btn sm lime" onclick="copyMemberInvite()">Copy invite link</button></div></div>'
+  );
+  const run = () => {
+    const qv = ($("#mp-q") || {}).value || "";
+    SharedStore.searchProfiles(supaClient(), qv).then(members => {
+      const box = $("#mp-results"); if (!box) return;
+      MP_MEMBERS = {}; (members || []).forEach(m => { MP_MEMBERS[m.id] = m; });
+      if (!members.length) {
+        box.innerHTML = '<p class="muted small">No members match — send them the invite link below.</p>';
+        return;
+      }
+      box.innerHTML = members.map(m =>
+        '<div class="member-row"><div class="member-av">' + esc(memberInitials(m.display_name)) + '</div>' +
+        '<div class="grow"><b>' + esc(m.display_name) + '</b></div>' +
+        '<button class="btn sm lime" onclick="pickMember(\'' + m.id + '\')">Add</button></div>'
+      ).join("");
+    }).catch(() => {});
+  };
+  const qi = $("#mp-q");
+  if (qi) qi.addEventListener("input", () => { clearTimeout(MP_TIMER); MP_TIMER = setTimeout(run, 250); });
+  setTimeout(() => { const el = $("#mp-q"); if (el) { el.focus({ preventScroll: true }); run(); } }, 60);
+}
+function memberInitials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0] || "?").charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : "")).toUpperCase();
+}
+function pickMember(id) {
+  const m = MP_MEMBERS[id], ctx = MP_CTX;
+  if (!m || !ctx) return;
+  MP_CTX = null;
+  openPlayerEditor({ id: "g" + Date.now(), name: m.display_name, user_id: m.id, hc: null },
+    ctx.onSave, ctx.returnTo, false, { lockName: true, forceAdd: true, skipPicker: true });
+}
+function copyMemberInvite() {
+  const slug = (S.trip && S.trip.slug) || (SHARED ? SHARED.tripId : "");
+  const link = location.origin + location.pathname + "?trip=" + encodeURIComponent(slug);
+  const done = () => toast("Invite link copied — text it to them!");
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => fallbackCopy(link, done));
+  else fallbackCopy(link, done);
+}
+function openPlayerEditor(player, onSave, returnTo, showContacts, opts) {
+  opts = opts || {};
+  const isNew = !(player && player.id);
+  if (isNew && !opts.skipPicker && canUseMemberDirectory()) { openMemberPicker(onSave, returnTo); return; }
   const p = player ? Object.assign(blankPlayer(), player) : blankPlayer();
   const c = contactFor(p.id);
   p.email = c.email; p.phone = c.phone; p.ghin = c.ghin;
   const sc = (typeof showContacts === "undefined") ? true : !!showContacts;
   PE = { player: p, onSave: onSave || null, returnTo: returnTo || null };
-  const isNew = !(player && player.name);
+  const showAsAdd = !!opts.forceAdd || !(player && player.name);
   const tbd = (p.hc == null || p.hc === "");
   const contactHtml = sc ?
     '<label class="f" for="pe-email">Email</label>' +
@@ -1928,9 +2099,15 @@ function openPlayerEditor(player, onSave, returnTo, showContacts) {
     '<p class="muted small">Live GHIN sync isn\u2019t available yet \u2014 official handicap data needs a USGA license. We keep the number on file for when it is.</p>' : "";
   openModal(
     '<button class="sheet-x" onclick="modalDismiss()" aria-label="Close">\u2715</button>' +
-    '<div class="kicker">Player</div><h2>' + (isNew ? "Add player" : "Edit player") + "</h2>" +
+    '<div class="kicker">Player</div><h2>' + (showAsAdd ? "Add player" : "Edit player") + "</h2>" +
+    (opts.lockName ? '<div style="margin-bottom:8px"><span class="badge ok">Caddie member</span></div>' : "") +
     '<label class="f" for="pe-name">Name</label>' +
-    '<input type="text" id="pe-name" placeholder="Full name" value="' + esc(p.name) + '" autocomplete="off">' +
+    '<input type="text" id="pe-name" placeholder="Full name" value="' + esc(p.name) + '" autocomplete="off"' + (opts.lockName ? " readonly" : "") + ">" +
+    ((canUseMemberDirectory() && player && player.id && !p.user_id && !opts.forceAdd)
+      ? '<div class="notice" style="margin-top:10px"><b>Not on Caddie yet.</b><br>' +
+        '<span class="muted small">They can\u2019t be selected for games or votes until they sign up.</span>' +
+        '<div style="margin-top:8px"><button class="btn sm lime" onclick="copyMemberInvite()">Copy invite link</button></div></div>'
+      : "") +
     contactHtml +
     '<label class="f" for="pe-hc">Handicap</label>' +
     '<div class="row"><input type="number" id="pe-hc" min="0" max="54" step="1" style="max-width:130px" value="' +
@@ -1972,8 +2149,8 @@ function savePlayerEditor() {
 function upsertRosterPlayer(p) {
   const isShared = !!SHARED;
   let g = golfer(p.id);
-  if (g) { g.name = p.name; g.hc = p.hc; }
-  else { g = { id: p.id, name: p.name, hc: p.hc }; S.golfers.push(g); }
+  if (g) { g.name = p.name; g.hc = p.hc; g.user_id = p.user_id || null; }
+  else { g = { id: p.id, name: p.name, hc: p.hc, user_id: p.user_id || null }; S.golfers.push(g); }
   if (!isShared) { g.email = p.email; g.phone = p.phone; g.ghin = p.ghin; }
   else if (canViewContacts()) {
     if (!S.contacts) S.contacts = {};
@@ -2963,6 +3140,10 @@ function renderCosts() {
     '<div class="total">Per-person total: <b>' + money(pp) + "</b></div>" +
     '<p class="muted small" style="margin:6px 0 0">Estimates prefilled from the leading researched option. Amounts and who fronted each item are editable.</p></div>';
 
+  html += '<div class="card"><div class="kicker">Receipts</div><h3>Weekend receipts</h3>' +
+    '<p class="muted small" style="margin:4px 0 10px">Snap receipts as the weekend happens — dinner, groceries, gas — then fold them into the splitter.</p>' +
+    '<div id="receipts-body"><p class="muted small">Loading\u2026</p></div></div>';
+
   html += '<div class="card"><div class="kicker">Expenses</div><h3>Line items <span class="muted small" style="font-weight:400">· per person</span></h3>';
   S.costs.items.forEach(it => {
     html += '<div class="item">' +
@@ -3008,6 +3189,145 @@ function renderCosts() {
   }
   html += "</div>";
   $("#panel-costs").innerHTML = html;
+  refreshReceipts();
+}
+
+/* ================= Receipts: snap, list, split ================= */
+async function refreshReceipts() {
+  const box = document.getElementById("receipts-body");
+  if (!box) return;
+  if (!SHARED) {
+    box.innerHTML = '<p class="muted small">Receipts live on the shared trip.</p>';
+    return;
+  }
+  const stale = Date.now() - RECEIPTS_AT > 15000;
+  if (RECEIPTS && !RECEIPTS_DIRTY && !stale) { renderReceiptsBody(box); return; }
+  try {
+    const client = SHARED.client;
+    const rows = await SharedStore.fetchReceipts(client, SHARED.tripId);
+    for (const r of rows) {
+      try { r._url = await SharedStore.receiptPhotoUrl(client, r.photo_path); }
+      catch (e) { r._url = null; }
+    }
+    RECEIPTS = rows; RECEIPTS_AT = Date.now(); RECEIPTS_DIRTY = false;
+    subscribeReceipts();
+    const b2 = document.getElementById("receipts-body");
+    if (b2) renderReceiptsBody(b2);
+  } catch (e) {
+    box.innerHTML = '<div class="notice"><b>Receipts need a quick database update.</b><br>' +
+      '<span class="muted small">Run the latest migration in the Supabase SQL editor and they\u2019ll work for everyone.</span></div>';
+  }
+}
+/* Live receipt updates on their own channel, so a missing receipts table
+   (migration not run yet) can never break the main trip channel. */
+function subscribeReceipts() {
+  if (!SHARED || receiptsCh) return;
+  try {
+    receiptsCh = SHARED.client.channel("trip-receipts-" + SHARED.tripId)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "receipts", filter: "trip_id=eq." + SHARED.tripId },
+        () => { RECEIPTS_DIRTY = true; refreshReceipts(); })
+      .subscribe();
+  } catch (e) { /* receipts stay poll-on-render */ }
+}
+function renderReceiptsBody(box) {
+  let html = '<div class="row" style="margin-bottom:6px">' +
+    '<button class="btn lime grow" onclick="snapReceipt()">\uD83D\uDCF7 Snap a receipt</button></div>' +
+    '<input type="file" id="receipt-file" accept="image/*" style="display:none" onchange="onReceiptFile(this)">';
+  if (!RECEIPTS.length) {
+    html += '<p class="muted small">No receipts yet. Snap the first one and split it when you\u2019re ready.</p>';
+  } else {
+    html += RECEIPTS.map(r => {
+      const paidName = r.paid_by ? gname(r.paid_by) : "\u2014";
+      const when = r.created_at
+        ? new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+      return '<div class="receipt-row">' +
+        (r._url ? '<img src="' + r._url + '" class="receipt-thumb" alt="Receipt">' : '<div class="receipt-thumb none"></div>') +
+        '<div class="grow"><b>' + money(+r.amount || 0) + '</b> <span class="muted">' + esc(r.merchant || "Receipt") + '</span>' +
+        '<div class="muted small">Paid by ' + esc(paidName) + (when ? " \u00b7 " + when : "") + '</div></div>' +
+        (r.split_at
+          ? '<span class="badge ok">Split \u2713</span>'
+          : '<button class="btn sm lime" onclick="splitReceipt(\'' + r.id + '\')">Split it</button>') +
+        '<button class="btn sm danger" onclick="removeReceipt(\'' + r.id + '\')" aria-label="Delete receipt">\u00d7</button></div>';
+    }).join("");
+  }
+  box.innerHTML = html;
+}
+function snapReceipt() {
+  const f = document.getElementById("receipt-file");
+  if (f) f.click();
+}
+function onReceiptFile(input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file || !SHARED) return;
+  PENDING_RECEIPT = { file: file, preview: URL.createObjectURL(file) };
+  const mine = (AUTH.user && S.golfers.find(g => g.user_id && g.user_id === AUTH.user.id)) || S.golfers[0];
+  openModal(
+    '<button class="sheet-x" onclick="modalDismiss()" aria-label="Close">\u2715</button>' +
+    '<div class="kicker">Receipt</div><h2>Log a receipt</h2>' +
+    '<img src="' + PENDING_RECEIPT.preview + '" class="receipt-preview" alt="Receipt photo">' +
+    '<label class="f" for="rc-amount">Amount</label>' +
+    '<input type="number" id="rc-amount" min="0" step="0.01" placeholder="0.00" inputmode="decimal">' +
+    '<label class="f" for="rc-merchant">What was it for?</label>' +
+    '<input type="text" id="rc-merchant" placeholder="e.g. Dinner at Hawthorne" autocomplete="off">' +
+    '<label class="f" for="rc-paidby">Paid by</label>' +
+    '<select id="rc-paidby">' +
+      S.golfers.map(g => "<option value='" + g.id + "'" + (mine && g.id === mine.id ? " selected" : "") + ">" + esc(g.name) + "</option>").join("") +
+    '</select>' +
+    '<p class="muted small">Splits evenly across all ' + S.golfers.length + ' players when you tap \u201cSplit it\u201d.</p>' +
+    '<div class="row" style="margin-top:12px"><button class="btn lime grow" id="rc-upload" onclick="uploadReceipt()">Upload receipt</button>' +
+    '<button class="btn" onclick="modalDismiss()">Cancel</button></div>'
+  );
+  setTimeout(() => { const el = $("#rc-amount"); if (el) el.focus({ preventScroll: true }); }, 60);
+}
+async function uploadReceipt() {
+  if (!PENDING_RECEIPT || !SHARED) return;
+  const amount = Math.max(0, +($("#rc-amount").value || 0));
+  const merchant = ($("#rc-merchant").value || "").trim();
+  const paidBy = $("#rc-paidby").value || null;
+  if (!amount) { toast("Enter the receipt amount."); return; }
+  const btn = $("#rc-upload");
+  if (btn) { btn.disabled = true; btn.textContent = "Uploading\u2026"; }
+  try {
+    const client = SHARED.client;
+    const path = await SharedStore.uploadReceiptPhoto(client, SHARED.tripId, PENDING_RECEIPT.file);
+    await SharedStore.insertReceipt(client, {
+      trip_id: SHARED.tripId, user_id: AUTH.user.id, amount: amount,
+      merchant: merchant, note: "", photo_path: path, paid_by: paidBy
+    });
+    PENDING_RECEIPT = null;
+    RECEIPTS_DIRTY = true;
+    closeModal(); toast("Receipt saved.");
+    refreshReceipts();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Upload receipt"; }
+    toast("Couldn\u2019t upload the receipt — try again.");
+  }
+}
+async function splitReceipt(id) {
+  const r = (RECEIPTS || []).find(x => x.id === id);
+  if (!r || r.split_at) return;
+  const n = Math.max(1, S.golfers.length);
+  const pp = Math.round((+r.amount / n) * 100) / 100;
+  S.costs.items.push({
+    id: "rcpt" + Date.now(), label: r.merchant || "Receipt",
+    desc: "Receipt \u00b7 split " + n + " ways", pp: pp, paidBy: r.paid_by || ""
+  });
+  save();
+  try { await SharedStore.markReceiptSplit(SHARED.client, id); } catch (e) { /* local split stands */ }
+  RECEIPTS_DIRTY = true;
+  renderHero(); renderCosts(); toast("Receipt split " + n + " ways.");
+}
+async function removeReceipt(id) {
+  if (!confirm("Delete this receipt?")) return;
+  const r = (RECEIPTS || []).find(x => x.id === id);
+  try {
+    if (r && r.photo_path) { try { await SharedStore.deleteReceiptPhoto(SHARED.client, r.photo_path); } catch (e) {} }
+    await SharedStore.deleteReceiptRow(SHARED.client, id);
+  } catch (e) { toast("Couldn\u2019t delete — try again."); return; }
+  RECEIPTS_DIRTY = true;
+  refreshReceipts();
 }
 
 /* ================= Scores tab ================= */
@@ -4883,6 +5203,8 @@ function initAuth() {
       AUTH.ready = true;
       renderAuthChip();
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && AUTH.user) {
+        /* Keep the member directory current: one profiles row per account. */
+        try { SharedStore.ensureProfile(client).catch(function () {}); } catch (e) {}
         /* Fresh sign-in while gated (email login): reboot cleanly into the app. */
         if (document.body.classList.contains("gated")) { location.reload(); return; }
         maybeRestoreAuthReturn(client).then(restored => {
