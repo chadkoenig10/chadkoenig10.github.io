@@ -20,21 +20,21 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const APPLE_AUTH_READY = true;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<title>Caddie</title>
-<meta name="description" content="Caddie plans your crew's golf trip — vote on dates, courses and stays, split costs, track scores. One link for the whole crew.">
+<title>Caddie Loop</title>
+<meta name="description" content="Caddie Loop plans your crew's golf trip — vote on dates, courses and stays, split costs, track scores. One link for the whole crew.">
 <meta name="theme-color" content="#4f46e5">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Caddie">
-<meta property="og:title" content="Caddie">
-<meta property="og:description" content="Caddie plans your crew's golf trip — vote on dates, courses and stays, split costs, track scores. One link for the whole crew.">
+<meta property="og:site_name" content="Caddie Loop">
+<meta property="og:title" content="Caddie Loop">
+<meta property="og:description" content="Caddie Loop plans your crew's golf trip — vote on dates, courses and stays, split costs, track scores. One link for the whole crew.">
 <meta property="og:url" content="https://chadkoenig10.github.io/golf-trip/">
 <meta property="og:image" content="https://chadkoenig10.github.io/golf-trip/og-image.png">
 <meta property="og:image:width" content="2192">
 <meta property="og:image:height" content="1152">
-<meta property="og:image:alt" content="Caddie — one link for the whole crew.">
+<meta property="og:image:alt" content="Caddie Loop — one link for the whole crew.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Caddie">
-<meta name="twitter:description" content="Caddie plans your crew's golf trip — vote on dates, courses and stays, split costs, track scores. One link for the whole crew.">
+<meta name="twitter:title" content="Caddie Loop">
+<meta name="twitter:description" content="Caddie Loop plans your crew's golf trip — vote on dates, courses and stays, split costs, track scores. One link for the whole crew.">
 <meta name="twitter:image" content="https://chadkoenig10.github.io/golf-trip/og-image.png">
 <style>
 :root{
@@ -538,7 +538,7 @@ body.gated .auth-modal{background:transparent;}
     <section class="panel" id="panel-costs"></section>
     <section class="panel" id="panel-scores"></section>
   </main>
-  <div class="footer">Caddie &middot; <a href="privacy.html">Privacy</a></div>
+  <div class="footer">Caddie Loop &middot; <a href="privacy.html">Privacy</a></div>
 </div>
 <nav class="tabbar" id="tabbar">
   <button data-tab="trip" class="active" aria-label="Trip">
@@ -578,15 +578,15 @@ body.gated .auth-modal{background:transparent;}
 </div>
 <div id="gate-splash" aria-hidden="true">
   <div class="gate-ball"></div>
-  <h1>Caddie</h1>
+  <h1>Caddie Loop</h1>
   <p>One link for the whole crew — log in to view the trip and vote.</p>
 </div>
 <div class="auth-modal" id="auth-modal">
-  <div class="auth-card" role="dialog" aria-label="Log in to Caddie">
+  <div class="auth-card" role="dialog" aria-label="Log in to Caddie Loop">
     <button class="auth-x" id="auth-x" aria-label="Close">✕</button>
-    <div class="kicker">Caddie account</div>
+    <div class="kicker">Caddie Loop account</div>
     <h2 id="auth-title">Log in</h2>
-    <p class="muted small" id="auth-sub">Log in to Caddie to view this trip, vote with the crew, and keep your trips in My trips.</p>
+    <p class="muted small" id="auth-sub">Log in to Caddie Loop to view this trip, vote with the crew, and keep your trips in My trips.</p>
     <button class="btn block auth-google" id="auth-google">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
       Continue with Google
@@ -1995,7 +1995,7 @@ function renderHero() {
     ? "linear-gradient(180deg,rgba(242,243,253,.94) 0%,rgba(242,243,253,.28) 32%,rgba(242,243,253,.12) 58%,rgba(242,243,253,.88) 100%),url(\"" + ART.hero + "\")"
     : "";
   heroEl.innerHTML =
-    '<div class="eyebrow"><span class="pulse-dot"></span>Caddie · Oct 2026' +
+    '<div class="eyebrow"><span class="pulse-dot"></span>Caddie Loop · Oct 2026' +
     '<span class="mode-pill ' + (S.mode === "production" ? "prod" : "demo") + '">' +
       (S.mode === "production" ? "Production" : "Demo") + "</span></div>" +
     "<h1>" + esc(S.trip.name).replace(/2026/, '<span class="hl">2026</span>') + "</h1>" +
@@ -2042,7 +2042,7 @@ function contactFor(gid) {
 function canUseMemberDirectory() {
   try { return !!(AUTH.user && supaClient()); } catch (e) { return false; }
 }
-/* Add-player starts at the member directory: only signed-up Caddie members
+/* Add-player starts at the member directory: only signed-up Caddie Loop members
    can be added to a roster. If someone isn't there yet, the organizer sends
    them an invite link; they sign up, then they can be selected. */
 let MP_MEMBERS = {}, MP_CTX = null, MP_TIMER = null, PENDING_RECEIPT = null;
@@ -2052,12 +2052,12 @@ function openMemberPicker(onSave, returnTo) {
   MP_MEMBERS = {};
   openModal(
     '<button class="sheet-x" onclick="modalDismiss()" aria-label="Close">\u2715</button>' +
-    '<div class="kicker">Add player</div><h2>Find a Caddie member</h2>' +
-    '<p class="muted small">Only people with a Caddie account can join the roster. Search by name:</p>' +
+    '<div class="kicker">Add player</div><h2>Find a Caddie Loop member</h2>' +
+    '<p class="muted small">Only people with a Caddie Loop account can join the roster. Search by name:</p>' +
     '<input type="text" id="mp-q" placeholder="Search members\u2026" autocomplete="off">' +
     '<div id="mp-results" style="margin-top:6px"><p class="muted small">Start typing to search.</p></div>' +
     '<div class="notice" style="margin-top:12px"><b>Can\u2019t find them?</b><br>' +
-    '<span class="muted small">They need a Caddie account first — send them your trip link and they can sign up in under a minute.</span>' +
+    '<span class="muted small">They need a Caddie Loop account first — send them your trip link and they can sign up in under a minute.</span>' +
     '<div style="margin-top:8px"><button class="btn sm lime" onclick="copyMemberInvite()">Copy invite link</button></div></div>'
   );
   const run = () => {
@@ -2121,11 +2121,11 @@ function openPlayerEditor(player, onSave, returnTo, showContacts, opts) {
   openModal(
     '<button class="sheet-x" onclick="modalDismiss()" aria-label="Close">\u2715</button>' +
     '<div class="kicker">Player</div><h2>' + (showAsAdd ? "Add player" : "Edit player") + "</h2>" +
-    (opts.lockName ? '<div style="margin-bottom:8px"><span class="badge ok">Caddie member</span></div>' : "") +
+    (opts.lockName ? '<div style="margin-bottom:8px"><span class="badge ok">Caddie Loop member</span></div>' : "") +
     '<label class="f" for="pe-name">Name</label>' +
     '<input type="text" id="pe-name" placeholder="Full name" value="' + esc(p.name) + '" autocomplete="off"' + (opts.lockName ? " readonly" : "") + ">" +
     ((canUseMemberDirectory() && player && player.id && !p.user_id && !opts.forceAdd)
-      ? '<div class="notice" style="margin-top:10px"><b>Not on Caddie yet.</b><br>' +
+      ? '<div class="notice" style="margin-top:10px"><b>Not on Caddie Loop yet.</b><br>' +
         '<span class="muted small">They can\u2019t be selected for games or votes until they sign up.</span>' +
         '<div style="margin-top:8px"><button class="btn sm lime" onclick="copyMemberInvite()">Copy invite link</button></div></div>'
       : "") +
@@ -2412,7 +2412,7 @@ function renderTrip() {
 /* ================= Home tab: new trips + every trip you run ================= */
 function renderHomeWrap(thisTripHtml) {
   let html = '<div class="home-hero">' +
-    '<div class="grow"><div class="home-kicker">Caddie home</div>' +
+    '<div class="grow"><div class="home-kicker">Caddie Loop home</div>' +
     '<div class="home-title">Plan the next one.</div>' +
     '<div class="muted small">Start a new trip, or jump back into a past one.</div></div>' +
     '<button class="btn lime" onclick="openTripWizard()">+ New trip</button></div>';
@@ -3857,7 +3857,7 @@ function recommendFormats(ans) {
     if (ans.hassle === "any" || t.hassle === "low" || (ans.hassle === "low" && t.hassle === "low")) {
       if (t.hassle === "low") { s += 1; why.push("Simple to run — no extra tracking."); }
     }
-    if (f.auto) { s += 1; why.push("Caddie scores it live for you."); }
+    if (f.auto) { s += 1; why.push("Caddie Loop scores it live for you."); }
     return { f: f, score: s, why: why.slice(0, 3) };
   });
   scored.sort((a, b) => b.score - a.score || (b.f.auto - a.f.auto));
@@ -4203,7 +4203,7 @@ function fgCard(id, fromQuiz) {
     '<h3 style="margin:0;flex:1">' + esc(f.name) + '</h3>' +
     '<button class="iconbtn" onclick="closeModal()">✕</button></div>' +
     '<p class="muted" style="margin-top:0">' + esc(f.short) + ' · ' + esc(f.players) +
-    ' · ' + (f.auto ? '⚡ Caddie scores it live' : '📋 Guided setup + manual results') + '</p>' +
+    ' · ' + (f.auto ? '⚡ Caddie Loop scores it live' : '📋 Guided setup + manual results') + '</p>' +
     sec("How it works", '<ul class="fg-why">' + f.how.map(h => '<li>' + esc(h) + '</li>').join("") + '</ul>') +
     sec("Ties", esc(f.ties)) +
     sec("Presses", esc(f.press)) +
