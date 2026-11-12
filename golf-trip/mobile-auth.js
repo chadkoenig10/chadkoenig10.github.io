@@ -32,26 +32,53 @@
     };
   }
 
-  async function signInWithGoogle(client) {
+  /* Never surface raw JS-engine text in the login UI (e.g. ".then is not a
+   * function. (In 'p.App.addListener(...)')") — it reads as gibberish.
+   * Map engine/network-level failures to a human message; pass through
+   * genuine auth errors (cancelled, provider errors) untouched. */
+  function friendlySignInError(provider, err) {
+    var label = provider === "apple" ? "Apple" : "Google";
+    var msg = (err && err.message) || String(err || "");
+    if (/is not a function|undefined is not an object|cannot read propert|can't find variable|failed to fetch|networkerror|load failed/i.test(msg)) {
+      return new Error(label + " sign-in couldn't start — check your connection and try again.");
+    }
+    return err instanceof Error ? err : new Error(msg || (label + " sign-in failed — try again."));
+  }
+
+  async function signInWithProvider(client, provider) {
     var p = plugins();
     if (!p.Browser || !p.App) {
       throw new Error("Capacitor Browser/App plugins are not available.");
     }
     var res = await client.auth.signInWithOAuth({
-      provider: "google",
+      provider: provider,
       options: { redirectTo: CALLBACK_SCHEME, skipBrowserRedirect: true }
     });
     if (res.error) throw res.error;
     var url = res.data && res.data.url;
     if (!url) throw new Error("No OAuth URL returned.");
 
-    return new Promise(function (resolve, reject) {
+    /* A synchronous throw anywhere below (e.g. a plugin proxy throwing on
+     * addListener) auto-rejects the promise with the raw error — map it so
+     * the login UI never shows engine gibberish. Errors already routed
+     * through finish() are friendly and pass through unchanged. */
+    try {
+      return await new Promise(function (resolve, reject) {
       var done = false;
-      var listener = null;
+      var listener = null;        /* resolved PluginListenerHandle */
+      var listenerPending = null; /* promise for the handle, when async */
 
       function cleanup() {
+        if (listenerPending) {
+          listenerPending.then(function (h) { try { h.remove(); } catch (e) { /* ignore */ } },
+                               function () { /* ignore */ });
+          listenerPending = null;
+        }
         if (listener) {
-          try { listener.remove(); } catch (e) { /* ignore */ }
+          try {
+            var r = listener.remove();
+            if (r && typeof r.then === "function") r.catch(function () { /* ignore */ });
+          } catch (e) { /* ignore */ }
           listener = null;
         }
       }
@@ -60,22 +87,70 @@
         done = true;
         cleanup();
         try { p.Browser.close(); } catch (e) { /* ignore */ }
-        if (err) reject(err);
+        if (err) reject(friendlySignInError(provider, err));
         else resolve();
       }
 
-      /* The OS routes com.chadkoenig.caddie://login-callback?code=... here. */
-      p.App.addListener("appUrlOpen", function (event) {
+      /* The OS routes com.chadkoenig.caddie://login-callback?code=... here.
+       *
+       * NOTE (2026-09-25): the raw window.Capacitor.Plugins proxy used here
+       * resolves the listener handle SYNCHRONOUSLY, while the @capacitor/app
+       * package types addListener() as returning a Promise. Chaining .then()
+       * unconditionally crashed native Apple/Google sign-in on device with
+       * ".then is not a function". Handle both shapes. */
+      var handle = p.App.addListener("appUrlOpen", function (event) {
         try {
-          var u = new URL(event.url || "");
+          var rawUrl = event.url || "";
+          var u = new URL(rawUrl);
           var code = u.searchParams.get("code");
-          if (!code) { finish(new Error("Sign-in was cancelled or failed.")); return; }
-          client.auth.exchangeCodeForSession(code).then(function (r) {
-            if (r.error) finish(r.error);
-            else finish(null);
-          }).catch(finish);
+          var errParam = u.searchParams.get("error") || u.searchParams.get("error_code");
+          var errDesc = u.searchParams.get("error_description");
+          if (errParam) {
+            finish(new Error("Sign-in failed: " + errParam + (errDesc ? " — " + errDesc : "")));
+            return;
+          }
+          if (code) {
+            /* PKCE flow: exchange the code for a session. */
+            client.auth.exchangeCodeForSession(code).then(function (r) {
+              if (r.error) finish(r.error);
+              else finish(null);
+            }).catch(finish);
+            return;
+          }
+          /* Implicit flow: Supabase returned tokens in the URL fragment
+           * (#access_token=...&refresh_token=...). Set the session directly. */
+          var fragParams = {};
+          try {
+            var frag = (u.hash || "").replace(/^#/, "");
+            frag.split("&").forEach(function (pair) {
+              var idx = pair.indexOf("=");
+              if (idx > 0) fragParams[pair.slice(0, idx)] = decodeURIComponent(pair.slice(idx + 1));
+            });
+          } catch (e) { /* ignore */ }
+          if (fragParams.error) {
+            finish(new Error("Sign-in failed: " + fragParams.error + (fragParams.error_description ? " — " + fragParams.error_description : "")));
+            return;
+          }
+          if (fragParams.access_token) {
+            client.auth.setSession({
+              access_token: fragParams.access_token,
+              refresh_token: fragParams.refresh_token || ""
+            }).then(function (r) {
+              if (r.error) finish(r.error);
+              else finish(null);
+            }).catch(finish);
+            return;
+          }
+          finish(new Error("Sign-in was cancelled or failed."));
         } catch (e) { finish(e); }
-      }).then(function (h) { listener = h; }).catch(function () { /* ignore */ });
+      });
+      if (handle && typeof handle.then === "function") {
+        listenerPending = handle;
+        handle.then(function (h) { listener = h || null; listenerPending = null; },
+                    function () { listenerPending = null; });
+      } else {
+        listener = handle || null;
+      }
 
       p.Browser.open({ url: url, windowName: "_blank", presentationStyle: "popover" })
         .catch(function (e) { finish(e); });
@@ -85,10 +160,14 @@
         if (!done) finish(new Error("Sign-in timed out — please try again."));
       }, 120000);
     });
+  } catch (e) {
+    throw friendlySignInError(provider, e);
+  }
   }
 
   window.CaddieNativeAuth = {
-    signInWithGoogle: signInWithGoogle,
+    signInWithGoogle: function (client) { return signInWithProvider(client, "google"); },
+    signInWithApple: function (client) { return signInWithProvider(client, "apple"); },
     callbackScheme: CALLBACK_SCHEME
   };
 })();
